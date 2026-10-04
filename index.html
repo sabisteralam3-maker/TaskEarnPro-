@@ -65,7 +65,7 @@ window.addEventListener('error',function(e){if(!window.__appReady)window.__say('
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase, ref, get, set, push, onValue, runTransaction, serverTimestamp, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, get, set, push, onValue, runTransaction, serverTimestamp, query, limitToLast, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyACksjFGrV6shODUf76J9KPSkrxsRUE_Q4",
@@ -88,14 +88,17 @@ const LOGO = document.getElementById('splashLogo').src;
 { const fav = document.createElement('link'); fav.rel = 'icon'; fav.href = LOGO; document.head.appendChild(fav); }
 let bootDone = false, authResolved = false; const bootT0 = Date.now();
 function hideBoot() { if (bootDone) return; bootDone = true; setTimeout(() => { const b = document.getElementById('boot'); b.classList.add('opacity-0'); setTimeout(() => b.classList.add('hidden'), 500); }, Math.max(0, 1900 - (Date.now() - bootT0))); }
-setTimeout(() => { if (!authResolved && window.__say) window.__say('Firebase se connect nahi ho paya. Internet check karo ya https link se kholo.'); }, 10000);
+setTimeout(() => { if (!authResolved) { if (window.__say) window.__say('Firebase se connect nahi ho paya. Internet check karo ya https link se kholo.'); } }, 10000);
+window.addEventListener('error', e => { if (!bootDone && window.__say) window.__say('Error: ' + e.message); });
+window.addEventListener('unhandledrejection', e => { if (!bootDone && window.__say) window.__say('Error: ' + ((e.reason && e.reason.message) || e.reason)); });
+
 
 const DOMAIN = 'taskearn.user';   // mobile number becomes  9876543210@taskearn.user  for Firebase Auth
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // All money is stored as integer PAISE (100 paise = 1 rupee) so there are no floating point errors.
-const DEF = { site_name: 'TaskEarnPro', min_withdrawal: 10000, currency_symbol: '₹', referral_reward: 1000, welcome_bonus: 0, daily_checkin_reward: 500 };
-const S = { user: null, profile: null, settings: {}, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {}, flash: null, cat: 'all', txShown: 20, authMode: 'login', authErr: '', refPrefill: '', signingUp: false, busy: false };
+const DEF = { site_name: 'TaskEarnPro', upi_min: 10000, upi_max: 100000, gift_min: 1000, gift_max: 800000, currency_symbol: '₹', referral_reward: 500, referral_tasks: 5, referral_link: 'https://swiftapk.io/dashboard/download?id=810', welcome_bonus: 0, daily_checkin_reward: 500, promo_price: 800, promo_reward: 500 };
+const S = { user: null, profile: null, settings: {}, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {}, lb: {}, promos: {}, method: 'upi', flash: null, cat: 'all', txShown: 20, authMode: 'login', authErr: '', refPrefill: '', signingUp: false, busy: false };
 let unsubs = [], lastRoute = '';
 const cfg = k => (S.settings && S.settings[k] != null) ? S.settings[k] : DEF[k];
 const money = p => cfg('currency_symbol') + ((p || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -103,6 +106,7 @@ const parseMoney = v => { v = String(v).trim(); const m = v.match(/^(\d{1,9})(?:
 const fmt = ts => ts ? new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const todayStr = () => new Date().toLocaleDateString('en-CA');
 const TYPES = { watch: ['Watch & Earn', 'fa-circle-play'], install: ['Install & Earn', 'fa-mobile-screen-button'], survey: ['Survey', 'fa-clipboard-question'], daily: ['Daily Check-in', 'fa-calendar-check'], channel: ['Join Channel', 'fa-bullhorn'], review: ['Rate & Review', 'fa-star'] };
+const METHODS = { upi: { label: 'UPI', icon: 'fa-solid fa-building-columns', min: 'upi_min', max: 'upi_max' }, amazon: { label: 'Amazon', icon: 'fa-brands fa-amazon', min: 'gift_min', max: 'gift_max' }, gplay: { label: 'Google Play', icon: 'fa-brands fa-google-play', min: 'gift_min', max: 'gift_max' } };
 const INP = 'glass-input w-full rounded-xl px-4 py-3 text-sm outline-none';
 const CARD = 'glass rounded-2xl';
 const BTN = 'btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white';
@@ -111,7 +115,7 @@ const badge = s => { const m = { pending: ['bg-amber-50 text-amber-700', 'fa-clo
 const emptyBox = (icon, title, sub = '') => `<div class="glass rounded-2xl p-8 text-center"><i class="fa-solid ${icon} text-4xl text-slate-300"></i><p class="mt-3 font-semibold">${esc(title)}</p><p class="text-sm text-slate-500">${esc(sub)}</p></div>`;
 const backBtn = (href, title) => `<div class="mb-4 flex items-center gap-3"><a href="${href}" aria-label="Back" class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"><i class="fa-solid fa-arrow-left"></i></a><h1 class="text-lg font-bold">${esc(title)}</h1></div>`;
 
-function flash(type, msg) { S.flash = { type, msg }; render(true); clearTimeout(flash.t); flash.t = setTimeout(() => { S.flash = null; render(); }, 4500); }
+function flash(type, msg) { S.flash = { type, msg }; const b = document.getElementById('flashBox'); if (b) b.innerHTML = flashHTML(); window.scrollTo({ top: 0, behavior: 'smooth' }); clearTimeout(flash.t); flash.t = setTimeout(() => { S.flash = null; const b2 = document.getElementById('flashBox'); if (b2) b2.innerHTML = ''; }, 4500); }
 const flashHTML = () => S.flash ? `<div class="mb-4 flex items-start gap-3 rounded-2xl border p-3.5 text-sm ${S.flash.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}"><i class="fa-solid ${S.flash.type === 'success' ? 'fa-circle-check text-emerald-500' : 'fa-circle-exclamation text-red-500'} mt-0.5 text-base"></i><span>${esc(S.flash.msg)}</span></div>` : '';
 async function busy(fn) { if (S.busy) return; S.busy = true; $('#busy').classList.remove('hidden'); try { await fn(); } finally { S.busy = false; $('#busy').classList.add('hidden'); } }
 
@@ -139,9 +143,10 @@ function compress(file, max, q, crop169) {
 
 // ================= wallet logic =================
 // Every balance change is followed by a transaction record.
-async function credit(uid, amt, reason) {
+async function credit(uid, amt, reason, lb) {
   await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) + amt);
   await set(push(ref(db, `transactions/${uid}`)), { type: 'credit', amount: amt, reason, ts: serverTimestamp() });
+  if (lb) { try { await runTransaction(ref(db, `leaderboard/${uid}/earned`), c => (c || 0) + amt); await set(ref(db, `leaderboard/${uid}/name`), S.profile.name); } catch (_) { /* leaderboard is optional */ } }
 }
 const activeTasks = () => Object.entries(S.tasks).map(([id, t]) => ({ ...t, id })).filter(t => t.status === 'active').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 const taskReward = t => t.type === 'daily' ? cfg('daily_checkin_reward') : (t.reward || 0);
@@ -174,7 +179,7 @@ async function completeTask(id, file) {
       flash('success', 'Proof submitted. Waiting for admin review.');
     } else {
       await set(ref(db, `userTasks/${uid}/${id}`), { ...rec, status: 'approved' });          // rules reject a second claim
-      if (rec.reward > 0) await credit(uid, rec.reward, t.type === 'daily' ? 'Daily check-in reward' : 'Task completed: ' + t.title);
+      if (rec.reward > 0) await credit(uid, rec.reward, t.type === 'daily' ? 'Daily check-in reward' : 'Task completed: ' + t.title, true);
       if (t.type !== 'daily') await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
       flash('success', t.type === 'daily' ? 'Daily reward claimed. Come back tomorrow.' : 'Task completed. Reward added to your wallet.');
     }
@@ -182,23 +187,45 @@ async function completeTask(id, file) {
 }
 
 async function doWithdraw(upi, amtStr) {
-  const amt = parseMoney(amtStr), uid = S.user.uid, min = cfg('min_withdrawal');
-  if (!/^[a-zA-Z0-9._-]{2,64}@[a-zA-Z]{2,32}$/.test(upi)) return flash('error', 'Invalid UPI ID.');
+  const mk = S.method, m = METHODS[mk], amt = parseMoney(amtStr), uid = S.user.uid, min = cfg(m.min), max = cfg(m.max);
+  if (mk === 'upi' && !/^[a-zA-Z0-9._-]{2,64}@[a-zA-Z]{2,32}$/.test(upi)) return flash('error', 'Invalid UPI ID.');
   if (!amt || amt <= 0) return flash('error', 'Enter a valid amount.');
-  if (amt < min) return flash('error', 'Minimum withdrawal is ' + money(min) + '.');
+  if (amt < min) return flash('error', 'Minimum for ' + m.label + ' is ' + money(min) + '.');
+  if (amt > max) return flash('error', 'Maximum for ' + m.label + ' is ' + money(max) + '.');
   if ((S.profile.balance || 0) < amt) return flash('error', 'Insufficient wallet balance.');
   try {
     // 1) debit atomically (aborts if balance is too low)
     const r = await runTransaction(ref(db, `users/${uid}/balance`), c => (typeof c === 'number' && c >= amt) ? c - amt : (c === null ? 0 : undefined));
     if (!r.committed) return flash('error', 'Insufficient wallet balance.');
-    // 2) create the withdrawal + transaction record. If this fails we refund.
+    // 2) create the request + transaction record. If this fails we refund.
     const wref = push(ref(db, `withdrawals/${uid}`));
     try {
-      await set(wref, { uid, name: S.profile.name, mobile: S.profile.mobile, upi, amount: amt, status: 'pending', createdAt: serverTimestamp() });
-      await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: amt, reason: 'Withdrawal request', ref: wref.key, ts: serverTimestamp() });
-      flash('success', 'Withdrawal request submitted.');
+      const rec = { uid, name: S.profile.name, mobile: S.profile.mobile, method: mk, amount: amt, status: 'pending', createdAt: serverTimestamp() };
+      if (mk === 'upi') rec.upi = upi;
+      await set(wref, rec);
+      await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: amt, reason: 'Redeem request (' + m.label + ')', ref: wref.key, ts: serverTimestamp() });
+      flash('success', 'Redeem request submitted.');
     } catch (e2) { await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) + amt); flash('error', 'Could not submit the request. Please try again.'); }
   } catch (e) { flash('error', 'Something went wrong. Please try again.'); }
+}
+
+// Promote your own app / channel: the advertiser pays from the wallet, admin approves, and it becomes a task for everyone.
+async function doPromote(f) {
+  const name = f.pname.value.trim(), url = f.purl.value.trim(), type = f.ptype.value, qty = parseInt(f.pqty.value, 10), note = f.pnote.value.trim(), uid = S.user.uid;
+  if (name.length < 2 || name.length > 60) return flash('error', 'Enter the app or channel name (2-60 characters).');
+  if (!/^https?:\/\/\S+$/i.test(url) || url.length > 300) return flash('error', 'Enter a valid link starting with http:// or https://');
+  if (!['install', 'review', 'channel', 'watch'].includes(type)) return flash('error', 'Choose a task type.');
+  if (!(qty >= 10 && qty <= 1000)) return flash('error', 'Quantity must be between 10 and 1000.');
+  const price = cfg('promo_price'), cost = qty * price;
+  if ((S.profile.balance || 0) < cost) return flash('error', 'Insufficient wallet balance. You need ' + money(cost) + '.');
+  const r = await runTransaction(ref(db, `users/${uid}/balance`), c => (typeof c === 'number' && c >= cost) ? c - cost : (c === null ? 0 : undefined));
+  if (!r.committed) return flash('error', 'Insufficient wallet balance.');
+  const pref = push(ref(db, `promos/${uid}`));
+  try {
+    await set(pref, { name, url, type, qty, cost, rewardPer: cfg('promo_reward'), note: note.slice(0, 200), status: 'pending', createdAt: serverTimestamp() });
+    await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: cost, reason: 'Promotion: ' + name, ref: pref.key, ts: serverTimestamp() });
+    f.reset(); flash('success', 'Promotion submitted. It goes live after admin approval.');
+  } catch (e) { await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) + cost); flash('error', 'Could not submit the promotion. Please try again.'); }
 }
 
 // ================= auth =================
@@ -230,7 +257,7 @@ async function doSignup(f) {
     S.signingUp = false; await boot(cred.user);
   } catch (e) { S.signingUp = false; S.authErr = authMsg(e); renderAuth(true); }
 }
-function teardown() { unsubs.forEach(u => u()); unsubs = []; Object.assign(S, { user: null, profile: null, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {} }); }
+function teardown() { unsubs.forEach(u => u()); unsubs = []; Object.assign(S, { lb: {}, promos: {}, user: null, profile: null, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {} }); }
 
 function renderAuth(force) {
   const a = document.activeElement, box = $('#auth');
@@ -277,6 +304,8 @@ const views = {
       <div class="relative mb-6 overflow-hidden rounded-3xl hero p-5 text-white"><div class="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10"></div>
         <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-wallet mr-1.5"></i>Wallet Balance</p><p class="relative mt-1 text-3xl font-bold">${esc(money(p.balance))}</p>
         <a href="#/wallet" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600">View Wallet <i class="fa-solid fa-arrow-right text-xs"></i></a></div>
+      <div class="mb-6 grid grid-cols-2 gap-3"><a href="#/leaderboard" class="glass-chip flex items-center gap-3 rounded-2xl p-3 text-sm font-semibold"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><i class="fa-solid fa-trophy"></i></span>Leaderboard</a>
+      <a href="#/promote" class="glass-chip flex items-center gap-3 rounded-2xl p-3 text-sm font-semibold"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><i class="fa-solid fa-rocket"></i></span>Promote App</a></div>
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Categories</h2>
       <div class="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">${Object.entries(chips).map(([k, l]) => `<button data-act="cat" data-v="${k}" class="shrink-0 rounded-full border px-4 py-2 text-sm font-semibold ${S.cat === k ? 'border-indigo-600 bg-indigo-600 text-white' : 'glass-chip text-slate-600'}">${l}</button>`).join('')}</div>
       <div class="mb-3 flex items-center justify-between"><h2 class="text-base font-bold">Available Tasks</h2><span class="text-xs font-medium text-slate-400">${list.length} task(s)</span></div>
@@ -314,7 +343,7 @@ const views = {
     const rows = Object.values(S.tx).sort((a, b) => (b.ts || 0) - (a.ts || 0)), shown = rows.slice(0, S.txShown);
     return `<div class="relative mb-6 overflow-hidden rounded-3xl hero p-5 text-white"><div class="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10"></div>
       <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-coins mr-1.5"></i>Available Balance</p><p class="relative mt-1 text-3xl font-bold">${esc(money(S.profile.balance))}</p>
-      <a href="#/withdraw" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-money-bill-transfer"></i>Withdraw</a></div>
+      <a href="#/withdraw" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-gift"></i>Redeem</a></div>
       <h2 class="mb-3 text-base font-bold">Transaction History</h2>
       ${!rows.length ? emptyBox('fa-receipt', 'No transactions yet.', 'Complete a task to earn your first reward.') :
       `<div class="divide-y divide-slate-100 ${CARD}">${shown.map(r => { const c = r.type === 'credit'; return `<div class="flex items-center gap-3 p-3.5"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${c ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}"><i class="fa-solid ${c ? 'fa-arrow-down' : 'fa-arrow-up'} text-sm"></i></span>
@@ -323,29 +352,68 @@ const views = {
   },
 
   withdraw() {
-    const recent = Object.values(S.wd).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 10);
-    return `${backBtn('#/wallet', 'Withdraw')}<div class="mb-5 grid grid-cols-2 gap-3"><div class="${CARD} p-4"><p class="text-xs text-slate-500">Available Balance</p><p class="mt-1 text-lg font-bold">${esc(money(S.profile.balance))}</p></div>
-      <div class="${CARD} p-4"><p class="text-xs text-slate-500">Minimum Withdrawal</p><p class="mt-1 text-lg font-bold">${esc(money(cfg('min_withdrawal')))}</p></div></div>
-      <form data-form="withdraw" class="space-y-4 ${CARD} p-4"><div><label class="mb-1.5 block text-xs font-semibold text-slate-600"><i class="fa-solid fa-building-columns mr-1"></i>UPI ID</label><input name="upi" required maxlength="100" placeholder="name@bank" class="${INP}"></div>
-      <div><label class="mb-1.5 block text-xs font-semibold text-slate-600"><i class="fa-solid fa-coins mr-1"></i>Amount</label><input name="amount" inputmode="decimal" required placeholder="Enter amount" class="${INP}"></div>
-      <button type="submit" class="${BTN}"><i class="fa-solid fa-money-bill-transfer"></i>Request Withdrawal</button></form>
+    const m = METHODS[S.method], min = cfg(m.min), max = cfg(m.max), gift = S.method !== 'upi';
+    const recent = Object.entries(S.wd).map(([id, w]) => ({ ...w, id })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 10);
+    return `${backBtn('#/wallet', 'Redeem')}<div class="mb-4 ${CARD} p-4"><p class="text-xs text-slate-500">Available Balance</p><p class="mt-1 text-xl font-bold">${esc(money(S.profile.balance))}</p></div>
+      <div class="mb-4 grid grid-cols-3 gap-2">${Object.entries(METHODS).map(([k, v]) => `<button data-act="method" data-v="${k}" class="${S.method === k ? 'btn-primary text-white' : 'glass-chip text-slate-600'} flex flex-col items-center gap-1.5 rounded-2xl py-3 text-xs font-semibold"><i class="${v.icon} text-xl"></i>${v.label}</button>`).join('')}</div>
+      <form data-form="withdraw" class="space-y-4 ${CARD} p-4">
+      ${gift ? `<p class="rounded-xl bg-indigo-50 p-3 text-xs text-indigo-700"><i class="fa-solid fa-circle-info mr-1.5"></i>Your ${esc(m.label)} redeem code will appear under Recent Requests after the admin sends it.</p>`
+        : `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600"><i class="fa-solid fa-building-columns mr-1"></i>UPI ID</label><input name="upi" required maxlength="100" placeholder="name@bank" class="${INP}"></div>`}
+      <div><label class="mb-1.5 block text-xs font-semibold text-slate-600"><i class="fa-solid fa-coins mr-1"></i>Amount</label><input name="amount" inputmode="decimal" required placeholder="Enter amount" class="${INP}">
+        <p class="mt-1.5 text-xs text-slate-500">Minimum ${esc(money(min))} &middot; Maximum ${esc(money(max))}</p></div>
+      ${gift ? `<div class="flex flex-wrap gap-2">${[10, 50, 100, 500, 1000].map(n => `<button type="button" data-act="preset" data-v="${n}" class="glass-chip rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-600">${esc(cfg('currency_symbol'))}${n}</button>`).join('')}</div>` : ''}
+      <button type="submit" class="${BTN}"><i class="${m.icon}"></i>Redeem ${esc(m.label)}</button></form>
       <h2 class="mb-3 mt-6 text-base font-bold">Recent Requests</h2>
-      ${!recent.length ? emptyBox('fa-money-bill-transfer', 'No withdrawal requests.') : `<div class="divide-y divide-slate-100 ${CARD}">${recent.map(w => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="text-sm font-bold">${esc(money(w.amount))}</p><p class="truncate text-xs text-slate-500">${esc(w.upi)}</p><p class="text-xs text-slate-400">${esc(fmt(w.createdAt))}</p></div>${badge(w.status)}</div>`).join('')}</div>`}`;
+      ${!recent.length ? emptyBox('fa-gift', 'No redeem requests.') : `<div class="divide-y divide-slate-100 ${CARD}">${recent.map(w => { const mm = METHODS[w.method || 'upi'] || METHODS.upi; return `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="text-sm font-bold">${esc(money(w.amount))} <span class="font-medium text-slate-500">&middot; ${esc(mm.label)}</span></p>
+        ${w.upi ? `<p class="truncate text-xs text-slate-500">${esc(w.upi)}</p>` : ''}${w.code ? `<p class="selectable mt-1 break-all rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">Code: ${esc(w.code)}</p>` : ''}<p class="text-xs text-slate-400">${esc(fmt(w.createdAt))}</p></div>${badge(w.status)}</div>`; }).join('')}</div>`}`;
+  },
+
+  leaderboard() {
+    const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+    const rows = Object.entries(S.lb).map(([id, v]) => ({ id, ...v })).filter(r => r.earned > 0).sort((a, b) => b.earned - a.earned).slice(0, 50);
+    const me = rows.findIndex(r => r.id === S.user.uid);
+    const medal = i => i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-200 text-slate-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600';
+    return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-5 text-sm text-slate-500">Top earners of all time</p>
+      <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p>
+      <p class="relative mt-1 text-3xl font-bold">${me >= 0 ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${me >= 0 ? 'Total earned ' + esc(money(rows[me].earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
+      ${!rows.length ? emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!') : `<div class="divide-y divide-slate-100 ${CARD}">${rows.map((r, i) => `<div class="flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/60' : ''}">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${medal(i)}">${i < 3 ? `<i class="fa-solid ${i === 0 ? 'fa-crown' : 'fa-medal'}"></i>` : i + 1}</span>
+        <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-xs text-slate-400">Rank #${i + 1}</p></div><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('')}</div>`}`;
+  },
+
+  promote() {
+    const list = Object.entries(S.promos).map(([id, p]) => ({ ...p, id })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const price = cfg('promo_price');
+    const L = (label, inner) => `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600">${label}</label>${inner}</div>`;
+    return `${backBtn('#/home', 'Promote Your App')}
+      <div class="mb-4 ${CARD} p-4"><p class="text-sm text-slate-600">Get real users to install, rate or join your app or channel. You pay <b>${esc(money(price))}</b> per completed task from your wallet. Users earn ${esc(money(cfg('promo_reward')))} per task. After admin approval your task goes live.</p>
+      <p class="mt-2 text-xs text-slate-500">Wallet balance: <b>${esc(money(S.profile.balance))}</b></p></div>
+      <form data-form="promote" class="space-y-4 ${CARD} p-4">
+      ${L('App or Channel Name', `<input name="pname" maxlength="60" required placeholder="e.g. My Game App" class="${INP}">`)}
+      ${L('Link (Play Store / channel link)', `<input name="purl" type="url" required placeholder="https://" class="${INP}">`)}
+      ${L('What should users do?', `<select name="ptype" class="${INP}"><option value="install">Install the app</option><option value="review">Rate and review</option><option value="channel">Join the channel</option><option value="watch">Watch a video</option></select>`)}
+      ${L('Number of users (10 - 1000)', `<input name="pqty" inputmode="numeric" required value="10" class="${INP}">`)}
+      ${L('Instructions (optional)', `<textarea name="pnote" rows="2" maxlength="200" class="${INP}" placeholder="Anything users must do?"></textarea>`)}
+      <p id="promoCost" class="text-sm font-semibold text-indigo-600">Total cost: ${esc(money(10 * price))}</p>
+      <button type="submit" class="${BTN}"><i class="fa-solid fa-rocket"></i>Submit Promotion</button></form>
+      <h2 class="mb-3 mt-6 text-base font-bold">Your Promotions</h2>
+      ${!list.length ? emptyBox('fa-rocket', 'No promotions yet.') : `<div class="divide-y divide-slate-100 ${CARD}">${list.map(p => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="truncate text-sm font-bold">${esc(p.name)}</p>
+        <p class="text-xs text-slate-500">${esc((TYPES[p.type] || TYPES.watch)[0])} &middot; ${p.qty} users &middot; ${esc(money(p.cost))}</p>${p.status === 'approved' ? `<p class="text-xs font-semibold text-emerald-600">${Math.min(S.stats[p.taskId] || 0, p.qty)}/${p.qty} completed</p>` : ''}</div>${badge(p.status)}</div>`).join('')}</div>`}`;
   },
 
   refer() {
-    const code = S.profile.referralCode || '', link = location.href.split('#')[0].split('?')[0] + '?ref=' + code;
+    const code = S.profile.referralCode || '', link = cfg('referral_link'), msg = 'Join ' + cfg('site_name') + ' and earn real rewards by completing tasks! Download: ' + link + '  Use my referral code: ' + code;
     const list = Object.values(S.refs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    const earned = list.reduce((s, r) => s + (r.rewarded ? (r.amount || 0) : 0), 0);
-    return `<h1 class="text-xl font-bold">Refer & Earn</h1><p class="mb-5 text-sm text-slate-500">Earn ${esc(money(cfg('referral_reward')))} when a friend you invite gets their first task approved.</p>
+    const need = cfg('referral_tasks'), earned = list.reduce((s, r) => s + (r.rewarded ? (r.amount || 0) : 0), 0);
+    return `<h1 class="text-xl font-bold">Refer & Earn</h1><p class="mb-5 text-sm text-slate-500">Earn ${esc(money(cfg('referral_reward')))} when a friend you invite completes ${cfg('referral_tasks')} tasks.</p>
       <div class="mb-4 rounded-3xl hero p-5 text-center text-white"><p class="text-xs font-medium text-indigo-100">Your Referral Code</p><p class="selectable mt-2 text-3xl font-extrabold tracking-widest">${esc(code)}</p>
       <button data-act="copy" data-v="${esc(code)}" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-copy"></i>Copy Code</button></div>
       <div class="mb-5 ${CARD} p-4"><p class="mb-2 text-xs font-semibold text-slate-600"><i class="fa-solid fa-link mr-1"></i>Referral Link</p><input readonly value="${esc(link)}" class="selectable w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 outline-none">
-      <button data-act="copy" data-v="${esc(link)}" class="mt-3 w-full rounded-xl bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-copy mr-1"></i>Copy Link</button></div>
+      <div class="mt-3 grid grid-cols-2 gap-3"><button data-act="copy" data-v="${esc(link)}" class="rounded-xl bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-copy mr-1"></i>Copy Link</button><a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener noreferrer" class="btn-primary rounded-xl py-2.5 text-center text-sm font-semibold text-white"><i class="fa-brands fa-whatsapp mr-1"></i>Share</a></div></div>
       <div class="mb-5 grid grid-cols-2 gap-3"><div class="${CARD} p-4"><p class="text-xs text-slate-500">Total Referrals</p><p class="mt-1 text-xl font-bold">${list.length}</p></div><div class="${CARD} p-4"><p class="text-xs text-slate-500">Total Earned</p><p class="mt-1 text-xl font-bold">${esc(money(earned))}</p></div></div>
       <h2 class="mb-3 text-base font-bold">Your Referrals</h2>
       ${!list.length ? emptyBox('fa-user-group', 'No referrals yet.', 'Share your code to start earning.') : `<div class="divide-y divide-slate-100 ${CARD}">${list.map(r => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="truncate text-sm font-semibold">${esc(r.name)}</p><p class="text-xs text-slate-400">Joined ${esc(fmt(r.createdAt))}</p></div>
-      ${r.rewarded ? `<span class="shrink-0 text-sm font-bold text-emerald-600">+ ${esc(money(r.amount))}</span>` : '<span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><i class="fa-solid fa-clock mr-1"></i>Pending</span>'}</div>`).join('')}</div>`}`;
+      ${r.rewarded ? `<span class="shrink-0 text-sm font-bold text-emerald-600">+ ${esc(money(r.amount))}</span>` : `<span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><i class="fa-solid fa-clock mr-1"></i>${Math.min(r.done || 0, need)}/${need} tasks</span>`}</div>`).join('')}</div>`}`;
   },
 
   profile() {
@@ -360,8 +428,8 @@ const views = {
 
 // ================= shell + routing =================
 function buildShell() {
-  const items = [['#/home', 'fa-house', 'Home'], ['#/wallet', 'fa-wallet', 'Wallet'], ['#/refer', 'fa-users', 'Refer & Earn'], ['#/profile', 'fa-user', 'Profile']];
-  const tabs = [['home', '#/home', 'fa-house', 'Home'], ['wallet', '#/wallet', 'fa-wallet', 'Wallet'], ['refer', '#/refer', 'fa-users', 'Refer'], ['profile', '#/profile', 'fa-user', 'Profile']];
+  const items = [['#/home', 'fa-house', 'Home'], ['#/wallet', 'fa-wallet', 'Wallet'], ['#/leaderboard', 'fa-trophy', 'Leaderboard'], ['#/refer', 'fa-users', 'Refer & Earn'], ['#/promote', 'fa-rocket', 'Promote Your App'], ['#/profile', 'fa-user', 'Profile']];
+  const tabs = [['home', '#/home', 'fa-house', 'Home'], ['wallet', '#/wallet', 'fa-wallet', 'Wallet'], ['rank', '#/leaderboard', 'fa-trophy', 'Rank'], ['refer', '#/refer', 'fa-users', 'Refer'], ['profile', '#/profile', 'fa-user', 'Profile']];
   $('#shell').innerHTML = `
   <header class="glass-bar sticky top-0 z-30 flex h-14 items-center justify-between px-4">
     <a href="#/home" class="flex items-center gap-2.5"><img src="${LOGO}" alt="" class="h-9 w-9 rounded-xl"><span class="js-site text-base font-bold tracking-tight"></span></a>
@@ -375,7 +443,7 @@ function buildShell() {
       <nav class="flex-1 space-y-1 p-3">${items.map(i => `<a href="${i[0]}" class="side-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-50"><i class="fa-solid ${i[1]} w-5 text-center"></i>${i[2]}</a>`).join('')}</nav>
       <div class="border-t border-slate-100 p-3"><button data-act="logout" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-red-600 active:bg-red-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Logout</button></div></aside></div>
   <main id="view" class="px-4 pb-28 pt-5"></main>
-  <nav class="glass-strong fixed bottom-3 left-1/2 z-30 grid w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 grid-cols-4 rounded-[28px] px-2 pb-2 pt-2">
+  <nav class="glass-strong fixed bottom-3 left-1/2 z-30 grid w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 grid-cols-5 rounded-[28px] px-2 pb-2 pt-2">
     ${tabs.map(t => `<a href="${t[1]}" data-tab="${t[0]}" class="tab flex flex-col items-center gap-1 text-[11px] font-semibold text-slate-400"><span class="pill flex h-8 w-14 items-center justify-center rounded-full"><i class="fa-solid ${t[2]} text-base"></i></span>${t[3]}</a>`).join('')}</nav>`;
   const d = $('#drawer'), o = $('#overlay'), s = $('#sidebar');
   const open = () => { d.classList.remove('pointer-events-none'); o.classList.remove('opacity-0'); s.classList.remove('-translate-x-full'); };
@@ -389,10 +457,10 @@ function render(force) {
   const a = document.activeElement;
   if (!force && a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && $('#view').contains(a)) return;
   const [v, arg] = route(), key = v + '/' + (arg || '');
-  $('#view').innerHTML = flashHTML() + views[v](arg);
-  const tab = { home: 'home', task: 'home', wallet: 'wallet', withdraw: 'wallet', refer: 'refer', profile: 'profile' }[v];
+  $('#view').innerHTML = '<div id="flashBox">' + flashHTML() + '</div>' + views[v](arg);
+  const tab = { home: 'home', task: 'home', wallet: 'wallet', withdraw: 'wallet', leaderboard: 'rank', promote: 'profile', refer: 'refer', profile: 'profile' }[v];
   document.querySelectorAll('.tab').forEach(t => { const on = t.dataset.tab === tab; t.classList.toggle('text-indigo-600', on); t.classList.toggle('text-slate-400', !on); t.querySelector('.pill').classList.toggle('bg-indigo-50', on); });
-  document.querySelectorAll('.side-link').forEach(l => { const on = l.getAttribute('href') === '#/' + tab; l.classList.toggle('bg-indigo-50', on); l.classList.toggle('text-indigo-600', on); });
+  document.querySelectorAll('.side-link').forEach(l => { const on = l.getAttribute('href') === '#/' + ({ task: 'home', withdraw: 'wallet' }[v] || v); l.classList.toggle('bg-indigo-50', on); l.classList.toggle('text-indigo-600', on); });
   document.querySelectorAll('.js-site').forEach(e => e.textContent = cfg('site_name'));
   $('#sbName').textContent = S.profile.name; $('#sbMobile').textContent = S.profile.mobile;
   if (key !== lastRoute) { window.scrollTo(0, 0); lastRoute = key; }
@@ -407,15 +475,19 @@ $('#shell').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
   if (a === 'cat') { S.cat = b.dataset.v; render(true); }
   else if (a === 'more') { S.txShown += 20; render(true); }
+  else if (a === 'method') { S.method = b.dataset.v; render(true); }
+  else if (a === 'preset') { const i = document.querySelector('#view input[name=amount]'); if (i) i.value = b.dataset.v; }
   else if (a === 'complete') busy(() => completeTask(b.dataset.id, null));
   else if (a === 'logout') signOut(auth);
   else if (a === 'copy') { const t = b.dataset.v, old = b.innerHTML, done = () => { b.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copied'; setTimeout(() => b.innerHTML = old, 1500); };
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); done(); } }
 });
+$('#shell').addEventListener('input', e => { if (e.target.name === 'pqty') { const q = parseInt(e.target.value, 10) || 0; $('#promoCost').textContent = 'Total cost: ' + money(q * cfg('promo_price')); } });
 $('#shell').addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, k = f.dataset.form;
   if (k === 'proof') busy(() => completeTask(f.dataset.id, f.proof.files[0]));
-  else if (k === 'withdraw') busy(() => doWithdraw(f.upi.value.trim(), f.amount.value));
+  else if (k === 'withdraw') busy(() => doWithdraw(f.upi ? f.upi.value.trim() : '', f.amount.value));
+  else if (k === 'promote') busy(() => doPromote(f));
   else if (k === 'name') busy(async () => { const n = f.name.value.trim(); if (n.length < 2 || n.length > 60) return flash('error', 'Please enter a valid name (2-60 characters).'); try { await set(ref(db, `users/${S.user.uid}/name`), n); flash('success', 'Profile updated.'); } catch (_) { flash('error', 'Could not update profile.'); } });
 });
 
@@ -429,6 +501,7 @@ async function boot(u) {
   S.profile = snap.val(); const uid = u.uid;
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
+  listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
   buildShell(); hideBoot(); $('#auth').classList.add('hidden'); $('#shell').classList.remove('hidden'); render(true);
 }
