@@ -532,5 +532,337 @@ function afterRender(v, arg, enter) {
   document.querySelectorAll('[data-bal]').forEach(el => animateNum(el, S._shownBal == null ? 0 : S._shownBal, bal));
   S._shownBal = bal;
   updateAds();
-  const q = $('#qrBox'); if (q) drawQR(q);
+    const q = $('#qrBox'); if (q) drawQR(q);
+  if (S.watch && !(v === 'task' && S.watch.taskId === arg)) stopWatch();
+  if ($('#wvHost') && v === 'task') startWatch(arg);
+  maybeSyncLb();
+}
+
+// ---- leaderboard: every user gets a row; own total is synced from the wallet history
+const lbSkip = r => /refund|welcome bonus|referral bonus|wallet top-up/i.test(r || '');
+async function syncLb() {
+  S._lbSynced = true; const uid = S.user.uid;
+  try {
+    const mine = (await get(ref(db, `leaderboard/${uid}`))).val();
+    const total = Object.values(S.tx).filter(t => t.type === 'credit' && !lbSkip(t.reason)).reduce((s, t) => s + (t.amount || 0), 0);
+    if (!mine || mine.name !== S.profile.name) await set(ref(db, `leaderboard/${uid}/name`), S.profile.name);
+    let diff = total - ((mine && mine.earned) || 0), guard = 0;
+    if (!mine && diff <= 0) await set(ref(db, `leaderboard/${uid}/earned`), 0);
+    while (diff > 0 && guard++ < 80) { const step = Math.min(diff, 50000); await runTransaction(ref(db, `leaderboard/${uid}/earned`), c => (c || 0) + step); diff -= step; }
+  } catch (e) { console.error('leaderboard sync', e.message); }
+}
+function maybeSyncLb() { if (!S._lbSynced && S._loaded.tx && S._loaded.lb && S.user && S.profile) syncLb(); }
+
+// ---- ads (all configured from the admin panel)
+function adContent(p, h) {
+  const a = S.ads || {}, type = a[p + '_type'] || 'image', code = a[p + '_code'], img = a[p + '_image'], link = a[p + '_link'];
+  if (type === 'code' && code) return `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc(code)}" style="width:100%;height:${h}px;border:0" loading="lazy"></iframe>`;
+  if (img && /^https?:\/\//i.test(img)) { const im = `<img src="${esc(img)}" alt="Ad" class="w-full object-cover" style="max-height:${h}px">`; return /^https?:\/\//i.test(link || '') ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${im}</a>` : im; }
+  return '';
+}
+const adBox = html => `<div class="glass overflow-hidden rounded-2xl"><p class="px-3 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Ad</p>${html}</div>`;
+function updateAds() {
+  const a = S.ads || {}, host = $('#adSticky'); if (!host) return;
+  const html = a.banner_enabled && a.banner_position !== 'inline' ? adContent('banner', a.banner_height || 60) : '';
+  const sig = html ? JSON.stringify([a.banner_type, a.banner_code, a.banner_image, a.banner_link, a.banner_height]) : '';
+  if (sig === S._adSig) return; S._adSig = sig;
+  host.innerHTML = html ? adBox(html) : ''; host.classList.toggle('hidden', !html);
+  $('#view').classList.toggle('pb-48', !!html); $('#view').classList.toggle('pb-32', !html);
+}
+const adInline = () => { const a = S.ads || {}; const h = a.banner_enabled && a.banner_position === 'inline' ? adContent('banner', a.banner_height || 60) : ''; return h ? `<div class="mb-5">${adBox(h)}</div>` : ''; };
+function rewardedCard() {
+  const a = S.ads || {}; if (!a.rewarded_enabled) return '';
+  const left = Math.max(0, (a.rewarded_limit || 10) - (S.advToday || 0));
+  return `<button data-act="rewarded" class="glass-chip mb-6 flex w-full items-center gap-3 rounded-2xl p-3 text-left"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><i class="fa-solid fa-circle-play"></i></span><span class="min-w-0 flex-1"><span class="block text-sm font-bold">Watch Ad &amp; Earn</span><span class="block text-xs text-slate-500">+${esc(money(a.rewarded_reward || 100))} per ad &middot; ${left} left today</span></span><i class="fa-solid fa-chevron-right text-xs text-slate-400"></i></button>`;
+}
+function modal(html) {
+  let m = $('#adModal');
+  if (!m) { m = document.createElement('div'); m.id = 'adModal'; m.className = 'fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm sm:items-center';
+    m.addEventListener('click', e => { const b = e.target.closest('[data-ad]'); if (!b || b.disabled) return; if (b.dataset.ad === 'close') closeModal(); else if (b.dataset.ad === 'claim') claimAd(); }); document.body.appendChild(m); }
+  m.innerHTML = html; m.classList.remove('hidden'); return m;
+}
+function closeModal() { clearInterval(S._adT); const m = $('#adModal'); if (m) m.classList.add('hidden'); }
+function openRewarded() {
+  const a = S.ads || {}; if ((S.advToday || 0) >= (a.rewarded_limit || 10)) return flash('error', 'Daily ad limit reached. Come back tomorrow.');
+  let left = a.rewarded_seconds || 15; const reward = a.rewarded_reward || 100;
+  const m = modal(`<div class="modal-pop w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" style="padding-bottom:calc(20px + var(--sab))">
+    <div class="mb-3 flex items-center justify-between"><h3 class="text-base font-bold">Watch Ad &amp; Earn</h3><button data-ad="close" class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">${adContent('rewarded', 250) || '<p class="p-6 text-center text-sm text-slate-500">Ad is loading. Please wait.</p>'}</div>
+    ${/^https?:\/\//i.test(a.rewarded_link || '') ? `<a href="${esc(a.rewarded_link)}" target="_blank" rel="noopener noreferrer" class="btn-start mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold"><i class="fa-solid fa-up-right-from-square"></i>Open Offer</a>` : ''}
+    <button data-ad="claim" disabled class="${BTN} mt-3 opacity-60"><i class="fa-solid fa-lock"></i><span id="adTxt">Wait ${left}s</span></button></div>`);
+  clearInterval(S._adT);
+  S._adT = setInterval(() => { if (document.hidden) return; left--; const b = m.querySelector('[data-ad=claim]'), t = $('#adTxt'); if (!b || !t) return clearInterval(S._adT);
+    if (left > 0) t.textContent = 'Wait ' + left + 's'; else { clearInterval(S._adT); b.disabled = false; b.classList.remove('opacity-60'); b.firstElementChild.className = 'fa-solid fa-coins'; t.textContent = 'Claim ' + money(reward); } }, 1000);
+}
+async function claimAd() {
+  await busy(async () => {
+    const a = S.ads || {}, uid = S.user.uid, lim = a.rewarded_limit || 10;
+    const r = await runTransaction(ref(db, `adViews/${uid}/${todayStr()}`), c => (c || 0) < lim ? (c || 0) + 1 : undefined);
+    if (!r.committed) { closeModal(); return flash('error', 'Daily ad limit reached. Come back tomorrow.'); }
+    await credit(uid, a.rewarded_reward || 100, 'Rewarded ad', true); closeModal(); flash('success', 'Ad reward added: ' + money(a.rewarded_reward || 100));
+  });
+}
+function onTaskDone() {
+  const a = S.ads || {}; if (!a.inter_enabled || !adContent('inter', 250)) return;
+  S._done++; if (S._done % (a.inter_every || 3)) return;
+  let left = a.inter_seconds || 5;
+  const m = modal(`<div class="modal-pop w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" style="padding-bottom:calc(20px + var(--sab))"><p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Sponsored</p>
+    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">${adContent('inter', 250)}</div><button data-ad="close" disabled class="${BTN} mt-3 opacity-60"><span id="adTxt">Close in ${left}s</span></button></div>`);
+  clearInterval(S._adT);
+  S._adT = setInterval(() => { if (document.hidden) return; left--; const b = m.querySelector('[data-ad=close]'), t = $('#adTxt'); if (!b || !t) return clearInterval(S._adT); if (left > 0) t.textContent = 'Close in ' + left + 's'; else { clearInterval(S._adT); b.disabled = false; b.classList.remove('opacity-60'); t.textContent = 'Close'; } }, 1000);
+}
+
+// ---- Watch & Earn: automatic verification (video must really play for the minimum time)
+function ytId(u) { const m = String(u || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/); return m ? m[1] : null; }
+function videoKind(u) { return ytId(u) ? 'yt' : (/\.(mp4|webm|ogg)(\?.*)?$/i.test(u || '') ? 'file' : null); }
+function isAutoWatch(t) { return t.type === 'watch' && (t.watchSeconds || 0) > 0 && !!videoKind(t.url); }
+const watchOK = () => lsGet('te_watch_ok') === '1';
+const watchSteps = t => ['Allow the permission when asked.', 'Press play on the video below.', 'Keep watching for at least ' + fmtT(t.watchSeconds) + '. The timer pauses if you stop the video, leave this screen or speed it up.', 'Your reward is added automatically.'];
+function watchBlock(t) {
+  if (!watchOK()) return `<div class="${CARD} p-4"><p class="mb-1 text-sm font-bold"><i class="fa-solid fa-shield-halved mr-1.5 text-indigo-600"></i>Permission needed</p>
+    <p class="text-sm text-slate-600">To verify your watch time automatically, ${esc(cfg('site_name'))} needs your permission to monitor video playback on this screen and keep the screen awake while you watch. No camera, microphone, contacts or files are accessed.</p>
+    <div class="mt-4 grid grid-cols-2 gap-3"><button data-act="consent" class="${BTN}">Allow</button><button data-act="denyconsent" class="rounded-xl bg-slate-100 py-3.5 text-sm font-semibold text-slate-600">Not now</button></div>${S.consentDenied ? '<p class="mt-3 text-xs text-red-600">Permission is required to earn from this task.</p>' : ''}</div>`;
+  const s = S.watchSecs[t.id] || 0;
+  return `<div class="${CARD} p-4"><div class="aspect-video overflow-hidden rounded-xl bg-black"><div id="wvHost" class="h-full w-full"></div></div>
+    <div class="mt-3"><div class="mb-1.5 flex justify-between text-xs font-semibold text-slate-500"><span id="wvTime">${fmtT(s)} / ${fmtT(t.watchSeconds)}</span><span id="wvStatus">Press play</span></div>
+    <div class="h-2.5 overflow-hidden rounded-full bg-slate-200"><div id="wvBar" class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700" style="width:${Math.min(100, s / t.watchSeconds * 100)}%"></div></div></div></div>`;
+}
+let ytReady = null;
+function loadYT() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytReady) return ytReady;
+  ytReady = new Promise((res, rej) => { const prev = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = () => { if (prev) prev(); res(); }; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; s.onerror = () => { ytReady = null; rej(new Error('yt')); }; document.head.appendChild(s); setTimeout(() => rej(new Error('yt timeout')), 12000); });
+  return ytReady;
+}
+function updateWatchUI() {
+  const w = S.watch; if (!w) return; const s = S.watchSecs[w.taskId] || 0, st = w.state || {};
+  const T = $('#wvTime'), B = $('#wvBar'), X = $('#wvStatus'); if (!T) return;
+  T.textContent = fmtT(s) + ' / ' + fmtT(w.need); B.style.width = Math.min(100, s / w.need * 100) + '%';
+  X.textContent = document.hidden ? 'Keep this screen open' : st.rate > 1 ? 'Set speed to normal' : st.playing ? 'Watching...' : 'Press play';
+}
+function tick() {
+  const w = S.watch; if (!w) return; let playing = false, rate = 1;
+  if (w.player && w.player.getPlayerState) { try { playing = w.player.getPlayerState() === 1; rate = w.player.getPlaybackRate ? w.player.getPlaybackRate() : 1; } catch (_) {} }
+  else if (w.video) { playing = !w.video.paused && !w.video.ended; rate = w.video.playbackRate; }
+  w.state = { playing, rate };
+  if (playing && !document.hidden && rate <= 1) S.watchSecs[w.taskId] = (S.watchSecs[w.taskId] || 0) + 1;
+  updateWatchUI();
+  if ((S.watchSecs[w.taskId] || 0) >= w.need && !w.done) { w.done = true; finishWatch(); }
+}
+function stopWatch() { const w = S.watch; if (!w) return; clearInterval(w.timer); try { if (w.player && w.player.destroy) w.player.destroy(); } catch (_) {} try { if (w.lock) w.lock.release(); } catch (_) {} S.watch = null; }
+async function startWatch(id) {
+  const t = S.tasks[id], host = $('#wvHost'); if (!t || !host) return;
+  if (S.watch && S.watch.taskId === id && host.firstChild) return;
+  stopWatch();
+  const w = S.watch = { taskId: id, need: t.watchSeconds, timer: null, state: {} };
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l => { w.lock = l; }).catch(() => {}); } catch (_) {}
+  if (videoKind(t.url) === 'yt') {
+    try { await loadYT(); } catch (_) { const X = $('#wvStatus'); if (X) X.textContent = 'Video could not load'; return; }
+    if (S.watch !== w || !$('#wvHost')) return;
+    $('#wvHost').innerHTML = '<div id="ytp"></div>';
+    w.player = new YT.Player('ytp', { videoId: ytId(t.url), width: '100%', height: '100%', playerVars: { rel: 0, modestbranding: 1, playsinline: 1, fs: 0 } });
+  } else { host.innerHTML = `<video src="${esc(t.url)}" controls playsinline class="h-full w-full"></video>`; w.video = host.firstChild; }
+  w.timer = setInterval(tick, 1000); updateWatchUI();
+}
+async function finishWatch() { const w = S.watch; if (!w) return; const id = w.taskId; stopWatch(); delete S.watchSecs[id]; await busy(() => completeTask(id, null, true)); }
+
+// ---- Add Coins (UPI QR + UTR)
+const upiLink = amt => `upi://pay?pa=${cfg('add_upi')}&pn=${ENC(cfg('site_name'))}&am=${(amt / 100).toFixed(2)}&cu=INR&tn=${ENC('Wallet top-up')}`;
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); setTimeout(rej, 8000); }); }
+async function drawQR(el) {
+  const text = el.dataset.qr; if (S._qr[text]) { el.innerHTML = S._qr[text]; return; }
+  if (el.dataset.busy === text) return; el.dataset.busy = text;
+  try { if (!window.QRCode) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'); el.innerHTML = ''; new QRCode(el, { text, width: 208, height: 208, correctLevel: QRCode.CorrectLevel.M }); setTimeout(() => { S._qr[text] = el.innerHTML; }, 400); }
+  catch (_) { el.innerHTML = `<img alt="UPI QR" class="h-full w-full" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${ENC(text)}">`; S._qr[text] = el.innerHTML; }
+}
+async function doDeposit(f) {
+  const utr = f.utr.value.trim(), uid = S.user.uid, amt = S.pay && S.pay.amt;
+  if (!amt) return flash('error', 'Enter the amount first.');
+  if (!/^\d{12}$/.test(utr)) return flash('error', 'Enter the 12-digit UTR / transaction ID from your payment app.');
+  try { await set(ref(db, `utrs/${utr}`), uid); } catch (e) { return flash('error', 'This UTR has already been submitted.'); }
+  try {
+    await set(push(ref(db, `deposits/${uid}`)), { uid, name: S.profile.name, mobile: S.profile.mobile, amount: amt, utr, status: 'pending', createdAt: serverTimestamp() });
+    S.pay = null; flash('success', 'Payment submitted. Coins are added after verification.'); render(true);
+views.addmoney = function () {
+  const min = cfg('add_min'), max = cfg('add_max'), upi = cfg('add_upi');
+  const deps = Object.entries(S.dep || {}).map(([id, d]) => ({ ...d, id })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 10);
+  const hist = `<h2 class="mb-3 mt-6 text-base font-bold">Recent Payments</h2>${!deps.length ? emptyBox('fa-qrcode', 'No payments yet.') : `<div class="divide-y divide-slate-100 ${CARD}">${deps.map(d => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="text-sm font-bold">${esc(money(d.amount))}</p><p class="truncate text-xs text-slate-500">UTR ${esc(d.utr)}</p><p class="text-xs text-slate-400">${esc(fmt(d.createdAt))}</p></div>${badge(d.status)}</div>`).join('')}</div>`}`;
+  if (!S.pay) return `${backBtn('#/wallet', 'Add Coins')}<div class="mb-4 ${CARD} p-4"><p class="text-xs text-slate-500">Wallet Balance</p><p data-bal class="mt-1 text-xl font-bold">${esc(money(S.profile.balance))}</p></div>
+    <form data-form="payamt" class="space-y-4 ${CARD} p-4"><div><label class="mb-1.5 block text-xs font-semibold text-slate-600"><i class="fa-solid fa-coins mr-1"></i>Amount to add</label><input name="amount" inputmode="decimal" required placeholder="Enter amount" class="${INP}"><p class="mt-1.5 text-xs text-slate-500">Minimum ${esc(money(min))} &middot; Maximum ${esc(money(max))}</p></div>
+    <div class="flex flex-wrap gap-2">${[50, 100, 200, 500, 1000].map(n => `<button type="button" data-act="preset" data-v="${n}" class="glass-chip rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-600">${esc(cfg('currency_symbol'))}${n}</button>`).join('')}</div>
+    <button type="submit" class="${BTN} rip"><i class="fa-solid fa-qrcode"></i>Generate QR</button></form>${hist}`;
+  const link = upiLink(S.pay.amt);
+  return `${backBtn('#/addmoney', 'Pay via UPI')}<div class="${CARD} p-5 text-center"><p class="text-xs text-slate-500">Scan and pay</p><p class="text-3xl font-extrabold">${esc(money(S.pay.amt))}</p>
+    <div id="qrBox" data-qr="${esc(link)}" class="mx-auto my-4 flex h-56 w-56 items-center justify-center rounded-2xl bg-white p-3 shadow-inner"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-300"></i></div>
+    <p class="text-xs text-slate-500">UPI ID</p><p class="selectable text-base font-bold">${esc(upi)}</p>
+    <div class="mt-4 grid grid-cols-2 gap-3"><button data-act="copy" data-v="${esc(upi)}" class="rounded-xl bg-indigo-50 py-3 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-copy mr-1"></i>Copy UPI ID</button><a href="${esc(link)}" class="btn-start flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold"><i class="fa-solid fa-mobile-screen-button"></i>Pay with UPI App</a></div></div>
+    <form data-form="utr" class="mt-4 space-y-3 ${CARD} p-4"><label class="block text-sm font-bold">After paying, enter the UTR / Transaction ID</label><input name="utr" inputmode="numeric" maxlength="12" pattern="[0-9]{12}" required placeholder="12-digit UTR number" class="${INP}">
+    <p class="text-xs text-slate-500">Coins are added after the admin verifies your payment.</p><button type="submit" class="${BTN} rip">Submit Payment</button><button type="button" data-act="payreset" class="w-full rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600">Change amount</button></form>${hist}`;
+};
+
+// ---- Refer & Earn with link + code + special share message
+function refMsg() {
+  const code = S.profile.referralCode || '', link = cfg('referral_link'); let m = String(cfg('referral_message') || '');
+  if (!m.includes('{link}')) m += ' ' + link; if (!m.includes('{code}')) m += ' Referral code: ' + code;
+  return m.split('{code}').join(code).split('{link}').join(link);
+}
+function shareTo(k) {
+  const link = cfg('referral_link'), msg = refMsg();
+  if (k === 'wa') return openExt('https://wa.me/?text=' + ENC(msg));
+  if (k === 'tg') return openExt('https://t.me/share/url?url=' + ENC(link) + '&text=' + ENC(msg.split(link).join('').trim()));
+  if (k === 'ig') { copyTxt(msg).then(() => flash('success', 'Message copied. Paste it in Instagram chat or story.')); return openExt('https://www.instagram.com/direct/inbox/'); }
+  if (navigator.share) navigator.share({ title: cfg('site_name'), text: msg }).catch(() => {}); else copyTxt(msg).then(() => flash('success', 'Message copied.'));
+}
+views.refer = function () {
+  const code = S.profile.referralCode || '', link = cfg('referral_link'), need = cfg('referral_tasks');
+  const list = Object.values(S.refs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const earned = list.reduce((s, r) => s + (r.rewarded ? (r.amount || 0) : 0), 0);
+  const fb = cfg('referee_bonus');
+  const sb = (k, ic, label, cls) => `<button data-act="share" data-v="${k}" class="rip flex flex-col items-center gap-1.5 rounded-2xl py-3 text-xs font-semibold text-white ${cls}"><i class="${ic} text-xl"></i>${label}</button>`;
+  return `<h1 class="text-xl font-bold">Refer &amp; Earn</h1><p class="mb-5 text-sm text-slate-500">Earn ${esc(money(cfg('referral_reward')))} when a friend you invite completes ${need} tasks.${fb > 0 ? ' Your friend gets ' + esc(money(fb)) + ' as a joining bonus.' : ''}</p>
+    <div class="hero mb-4 rounded-3xl p-5 text-center text-white"><p class="relative text-xs font-medium text-indigo-100">Your Referral Code</p><p class="selectable relative mt-2 text-3xl font-extrabold tracking-widest">${esc(code)}</p>
+      <button data-act="copy" data-v="${esc(code)}" class="rip relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-copy"></i>Copy Code</button></div>
+    <div class="mb-4 ${CARD} p-4"><p class="mb-2 text-xs font-semibold text-slate-600"><i class="fa-solid fa-link mr-1"></i>Referral Link</p>
+      <input readonly value="${esc(link)}" class="selectable w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 outline-none">
+      <div class="mt-2 flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2.5"><span class="text-xs font-semibold text-indigo-700">Referral Code</span><span class="selectable text-sm font-extrabold tracking-widest text-indigo-700">${esc(code)}</span></div>
+      <div class="mt-3 grid grid-cols-2 gap-3"><button data-act="copy" data-v="${esc(link)}" class="rounded-xl bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-copy mr-1"></i>Copy Link</button><button data-act="copy" data-v="${esc(refMsg())}" class="btn-primary rip rounded-xl py-2.5 text-sm font-semibold text-white"><i class="fa-solid fa-message mr-1"></i>Copy Message</button></div></div>
+    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Share with friends</p>
+    <div class="mb-3 grid grid-cols-4 gap-2">${sb('wa', 'fa-brands fa-whatsapp', 'WhatsApp', 'bg-emerald-500')}${sb('tg', 'fa-brands fa-telegram', 'Telegram', 'bg-sky-500')}${sb('ig', 'fa-brands fa-instagram', 'Instagram', 'bg-fuchsia-500')}${sb('more', 'fa-solid fa-share-nodes', 'More', 'bg-slate-700')}</div>
+    <div class="mb-5 ${CARD} p-3.5"><p class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your share message</p><p class="selectable whitespace-pre-line text-xs leading-relaxed text-slate-600">${esc(refMsg())}</p></div>
+    <div class="mb-5 grid grid-cols-2 gap-3"><div class="${CARD} p-4"><p class="text-xs text-slate-500">Total Referrals</p><p class="mt-1 text-xl font-bold">${list.length}</p></div><div class="${CARD} p-4"><p class="text-xs text-slate-500">Total Earned</p><p class="mt-1 text-xl font-bold">${esc(money(earned))}</p></div></div>
+    <h2 class="mb-3 text-base font-bold">Your Referrals</h2>
+    ${!list.length ? emptyBox('fa-user-group', 'No referrals yet.', 'Share your code to start earning.') : `<div class="divide-y divide-slate-100 ${CARD}">${list.map(r => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="truncate text-sm font-semibold">${esc(r.name)}</p><p class="text-xs text-slate-400">Joined ${esc(fmt(r.createdAt))}</p></div>${r.rewarded ? `<span class="shrink-0 text-sm font-bold text-emerald-600">+ ${esc(money(r.amount))}</span>` : `<span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><i class="fa-solid fa-clock mr-1"></i>${Math.min(r.done || 0, need)}/${need} tasks</span>`}</div>`).join('')}</div>`}`;
+};
+
+// ---- Terms, Privacy, Contact
+const LEGAL = {
+  terms: ['Terms & Conditions', [
+    ['Acceptance', 'By creating an account or using this app you agree to these Terms. If you do not agree, please do not use the app. You must be 18 years or older.'],
+    ['Your account', 'Provide correct information and keep your password safe. One person may hold only one account. You are responsible for all activity on your account.'],
+    ['Tasks and rewards', 'Rewards are credited only after a task is completed and verified, either automatically or by an admin. Fake, edited or reused proof, bots, emulators, VPN or any other trick will lead to rejection, balance forfeiture and a permanent ban. Task rewards, limits and availability can change at any time.'],
+    ['Wallet and redeem', 'Redeem requests are subject to the minimum and maximum limits shown in the app and are processed manually, which can take time. Make sure your UPI ID is correct, because payments sent to a wrong ID cannot be recovered. Gift card codes are delivered in the app after approval.'],
+    ['Add Coins', 'Coins added by UPI payment are credited after the payment is verified using the UTR you submit. Submitting a false or duplicate UTR is fraud and will lead to a ban. Added coins are intended for promotions and tasks inside the app.'],
+    ['Promotions', 'If you promote your app or channel you confirm that it is legal and safe and does not contain harmful, adult or misleading content. We may reject any promotion and refund the amount.'],
+    ['Referrals', 'A referral reward is paid once, after your friend completes the required number of tasks. Self-referrals and fake accounts are not allowed.'],
+    ['Ads', 'The app may show third party ads and sponsored offers. We are not responsible for the content or services of advertisers.'],
+    ['Suspension', 'We may suspend or close accounts that break these Terms or harm the app or other users, and we may change or stop the service at any time.'],
+    ['Liability', 'The app is provided as is. To the extent allowed by law we are not liable for indirect losses, missed earnings or service interruptions.'],
+    ['Changes and contact', 'We may update these Terms. Continued use means you accept the changes. Questions: see the Contact Us page.']]],
+  privacy: ['Privacy Policy', [
+    ['What we collect', 'Your name, mobile number, account ID, task activity, wallet and transaction history, proof screenshots you upload, UPI IDs and UTR numbers you submit, and basic device and browser information.'],
+    ['Why we use it', 'To run your account, verify tasks, pay rewards, prevent fraud and misuse, show your leaderboard rank, and improve the app.'],
+    ['Watch time tracking', 'For Watch & Earn tasks that are verified automatically, the app measures how long the video plays on your screen. This happens only after you allow it and only while the task is open. No camera, microphone, contacts or files are accessed.'],
+    ['Services we use', 'We use Google Firebase (login and database), YouTube video playback, and advertising partners. These services may process technical data under their own privacy policies.'],
+    ['Sharing', 'We do not sell your personal data. Your first name and last initial and your earnings can appear on the leaderboard. Data may be shared when required by law or to prevent fraud.'],
+    ['Security and retention', 'We use reasonable measures to protect your data. We keep it while your account is active and as needed for legal and fraud-prevention reasons.'],
+    ['Your choices', 'You can edit your name in your profile. To request deletion of your account and data, email us from the Contact Us page.'],
+    ['Children', 'The app is not meant for people under 18 and we do not knowingly collect their data.'],
+    ['Updates', 'We may update this policy. The latest version is always available in the app.']]]
+};
+const legalPage = k => `${backBtn('#/profile', LEGAL[k][0])}<p class="mb-4 text-xs text-slate-400">Last updated: October 2026</p><div class="space-y-3">${LEGAL[k][1].map(([h, t], i) => `<div class="${CARD} p-4"><h3 class="mb-1 text-sm font-bold"><span class="mr-1.5 text-indigo-600">${i + 1}.</span>${esc(h)}</h3><p class="text-sm leading-relaxed text-slate-600">${esc(t)}</p></div>`).join('')}</div>`;
+views.terms = () => legalPage('terms');
+views.privacy = () => legalPage('privacy');
+views.contact = () => `${backBtn('#/profile', 'Contact Us')}<div class="${CARD} p-5 text-center"><span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-2xl text-indigo-600"><i class="fa-solid fa-envelope"></i></span>
+  <p class="text-base font-bold">We are here to help</p><p class="mt-1 text-sm text-slate-500">Write to us about payments, rewards, your account or any problem. Please include your registered mobile number.</p>
+  <p class="selectable mt-4 break-all text-sm font-bold text-indigo-600">${esc(cfg('support_email'))}</p>
+  <div class="mt-4 grid grid-cols-2 gap-3"><a href="mailto:${esc(cfg('support_email'))}?subject=${ENC(cfg('site_name') + ' Support')}" class="btn-primary rip flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white"><i class="fa-solid fa-paper-plane"></i>Send Email</a><button data-act="copy" data-v="${esc(cfg('support_email'))}" class="rounded-xl bg-indigo-50 py-3 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-copy mr-1"></i>Copy Email</button></div>
+  <p class="mt-4 text-xs text-slate-400">We usually reply within 48 hours.</p></div>`;
+const legalMenu = () => `<div class="mb-5 divide-y divide-slate-100 ${CARD}">${[['#/addmoney', 'fa-circle-plus', 'Add Coins'], ['#/terms', 'fa-file-contract', 'Terms &amp; Conditions'], ['#/privacy', 'fa-user-shield', 'Privacy Policy'], ['#/contact', 'fa-envelope', 'Contact Us']].map(([h, i, l]) => `<a href="${h}" class="flex items-center justify-between p-4 text-sm font-semibold text-slate-700"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><i class="fa-solid ${i}"></i></span>${l}</span><i class="fa-solid fa-chevron-right text-xs text-slate-400"></i></a>`).join('')}</div>`;
+
+// ---- Partners page (offerwalls, surveys, games)
+S.partners = {};
+const DEFAULT_PARTNERS = [['pubscale', 'PubScale', 'task', 30], ['timewall', 'TimeWalls', 'task', 20], ['cpidroid', 'Cpi Droid', 'task', 0], ['cpx', 'CPX Research', 'survey', 35], ['pollreach', 'Poll Reach', 'survey', 20], ['theoremreach', 'Theorem Reach', 'survey', 0], ['playtime', 'Playtime', 'gaming', 0], ['spawntap', 'SpawnTap', 'gaming', 0], ['capsbit', 'Capsbit', 'gaming', 0]];
+const CATS = { task: 'Task Partners', survey: 'Survey Partners', gaming: 'Gaming Partners' };
+const PCOLS = { task: ['#22d3ee', '#3b82f6'], survey: ['#c4b5fd', '#6366f1'], gaming: ['#60a5fa', '#a855f7'] };
+const partnerList = () => (Object.keys(S.partners || {}).length ? Object.entries(S.partners).map(([id, p]) => ({ ...p, id })) : DEFAULT_PARTNERS.map(([id, name, category, bonus], i) => ({ id, name, category, bonus, order: i + 1, enabled: true }))).filter(p => p.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
+views.partners = function () {
+  const list = partnerList();
+  const tile = p => { const [c1, c2] = PCOLS[p.category] || PCOLS.task;
+    return `<div><button data-act="partner" data-id="${esc(p.id)}" class="rip relative block aspect-square w-full overflow-hidden rounded-[22px] p-[2px] ${p.url ? '' : 'opacity-70'}" style="background:linear-gradient(135deg,${c1},${c2});box-shadow:0 8px 22px ${c2}55"><span class="absolute inset-[2px] rounded-[20px] bg-slate-950"></span>
+      ${p.bonus ? `<span class="absolute inset-x-[2px] top-[2px] z-10 rounded-t-[20px] bg-violet-600 py-1 text-center text-[10px] font-extrabold tracking-wider text-white">${esc(p.bonus)}% BONUS</span>` : ''}
+      <span class="relative z-10 flex h-full w-full items-center justify-center p-3 ${p.bonus ? 'pt-6' : ''}">${p.logo ? `<img src="${esc(p.logo)}" alt="" class="max-h-full max-w-full object-contain">` : `<span class="text-center text-[15px] font-extrabold leading-tight text-white">${esc(p.name)}</span>`}</span>${p.url ? '' : '<span class="absolute bottom-1.5 left-0 right-0 z-10 text-center text-[9px] font-bold uppercase tracking-wider text-slate-400">Soon</span>'}</button>
+      <p class="mt-2 text-center text-xs font-bold">${esc(p.name)}</p></div>`; };
+  const sec = k => { const items = list.filter(p => p.category === k); return items.length ? `<div class="mb-6"><div class="mb-3 flex items-center gap-2.5"><span class="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-slate-900 shadow"><i class="fa-solid fa-star text-sm"></i></span><h2 class="text-sm font-extrabold uppercase tracking-widest">${CATS[k]}</h2></div><div class="grid grid-cols-3 gap-3">${items.map(tile).join('')}</div></div>` : ''; };
+  return `<h1 class="text-xl font-bold">Offers &amp; Partners</h1><p class="mb-5 text-sm text-slate-500">Complete offers, surveys and games from our partners. Rewards are added to your wallet automatically after the partner confirms.</p>${Object.keys(CATS).map(sec).join('')}`;
+};
+function openPartner(id) {
+  const p = partnerList().find(x => x.id === id); if (!p) return;
+  if (!p.url) return flash('error', p.name + ' will be available soon.');
+  const uid = S.user.uid, u = p.url.split('{uid}').join(uid).split('{user_id}').join(uid).split('{userid}').join(uid);
+  let m = $('#pSheet'); if (!m) { m = document.createElement('div'); m.id = 'pSheet'; m.className = 'fixed inset-0 z-[85] flex flex-col bg-white';
+    m.addEventListener('click', e => { if (e.target.closest('[data-ps=close]')) m.classList.add('hidden'), (m.querySelector('iframe').src = 'about:blank'); }); document.body.appendChild(m); }
+  m.innerHTML = `<div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 pb-2" style="padding-top:calc(8px + var(--sat))"><p class="truncate text-sm font-bold">${esc(p.name)}</p><div class="flex shrink-0 gap-2"><a href="${esc(u)}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"><i class="fa-solid fa-up-right-from-square mr-1"></i>Browser</a><button data-ps="close" class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-xmark"></i></button></div></div><iframe src="${esc(u)}" class="w-full flex-1 border-0" allow="autoplay; fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+  m.classList.remove('hidden');
+}
+
+// ---- click / submit hooks used by the main handlers
+function extClick(b, a) {
+  if (a === 'partner') { openPartner(b.dataset.id); return true; }
+  if (a === 'consent') { lsSet('te_watch_ok', '1'); S.consentDenied = false; render(true); return true; }
+  if (a === 'denyconsent') { S.consentDenied = true; render(true); return true; }
+  if (a === 'share') { shareTo(b.dataset.v); return true; }
+  if (a === 'rewarded') { openRewarded(); return true; }
+  if (a === 'payreset') { S.pay = null; render(true); return true; }
+  return false;
+}
+function extSubmit(f, k) {
+  if (k === 'utr') { busy(() => doDeposit(f)); return true; }
+  return false;
+}
+
+// ================= events =================
+document.addEventListener('contextmenu', e => e.preventDefault());
+$('#auth').addEventListener('click', e => { if (e.target.closest('[data-act="mode"]')) { S.authMode = S.authMode === 'login' ? 'signup' : 'login'; S.authErr = ''; renderAuth(true); } });
+$('#auth').addEventListener('submit', e => { e.preventDefault(); const f = e.target; busy(() => f.dataset.form === 'signup' ? doSignup(f) : doLogin(f)); });
+$('#shell').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
+  if (extClick(b, a)) return;
+  if (a === 'cat') { S.cat = b.dataset.v; render(true); }
+  else if (a === 'more') { S.txShown += 20; render(true); }
+  else if (a === 'method') { S.method = b.dataset.v; render(true); }
+  else if (a === 'preset') { const i = document.querySelector('#view input[name=amount]'); if (i) i.value = b.dataset.v; }
+  else if (a === 'complete') busy(() => completeTask(b.dataset.id, null));
+  else if (a === 'logout') signOut(auth);
+  else if (a === 'copy') { const t = b.dataset.v, old = b.innerHTML, done = () => { b.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copied'; setTimeout(() => b.innerHTML = old, 1500); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); done(); } }
+});
+$('#shell').addEventListener('input', e => { if (e.target.name === 'pqty') { const q = parseInt(e.target.value, 10) || 0; $('#promoCost').textContent = 'Total cost: ' + money(q * cfg('promo_price')); } });
+$('#shell').addEventListener('submit', e => {
+  e.preventDefault(); const f = e.target, k = f.dataset.form;
+  if (extSubmit(f, k)) return;
+  if (k === 'proof') busy(() => completeTask(f.dataset.id, f.proof.files[0]));
+  else if (k === 'withdraw') busy(() => doWithdraw(f.upi ? f.upi.value.trim() : '', f.amount.value));
+  else if (k === 'promote') busy(() => doPromote(f));
+  else if (k === 'name') busy(async () => { const n = f.name.value.trim(); if (n.length < 2 || n.length > 60) return flash('error', 'Please enter a valid name (2-60 characters).'); try { await set(ref(db, `users/${S.user.uid}/name`), n); flash('success', 'Profile updated.'); } catch (_) { flash('error', 'Could not update profile.'); } });
+});
+
+// ================= data + boot =================
+function listen(path, key, q) { unsubs.push(onValue(q || ref(db, path), s => { S[key] = s.val() || {}; S._loaded[key] = true; delete S.errs[key]; if (key === 'tx' || key === 'lb') maybeSyncLb(); if (key === 'ads') updateAds(); render(); }, e => { S.errs[key] = e.message; S._loaded[key] = true; console.error(path, e.message); render(); })); }
+async function boot(u) {
+  S.user = u;
+  const snap = await get(ref(db, 'users/' + u.uid));
+  if (!snap.exists()) { S.authErr = 'Account profile not found. Please create an account.'; await signOut(auth); return; }
+  if (snap.val().status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; await signOut(auth); return; }
+  S.profile = snap.val(); const uid = u.uid;
+  listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
+  listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
+  listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners');
+  unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
+  unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
+  buildShell(); hideBoot(); $('#auth').classList.add('hidden'); $('#shell').classList.remove('hidden'); render(true);
+}
+onValue(ref(db, 'settings'), s => { S.settings = s.val() || {}; document.title = cfg('site_name'); document.querySelectorAll('.js-site').forEach(e => e.textContent = cfg('site_name')); if (!S.user) renderAuth(); else render(); });
+const qref = new URLSearchParams(location.search).get('ref');
+if (qref) { S.authMode = 'signup'; S.refPrefill = qref.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+onAuthStateChanged(auth, async u => {
+  authResolved = true;
+  if (S.signingUp) return;
+  if (u) { await boot(u); }
+  else { teardown(); hideBoot(); $('#shell').classList.add('hidden'); $('#auth').classList.remove('hidden'); renderAuth(true); }
+});
+</script>
+</body>
+</html>
+
   
