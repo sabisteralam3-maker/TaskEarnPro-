@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
 <title>TaskEarnPro</title>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -25,13 +25,47 @@
   .hero::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(160deg,rgba(255,255,255,.30),transparent 42%);pointer-events:none}
   .btn-primary{background:linear-gradient(135deg,#6366f1,#7c3aed);border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 20px rgba(99,102,241,.35),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .15s,filter .15s}
   .btn-primary:active{transform:scale(.98);filter:brightness(.95)}
-  #view>*{animation:rise .35s ease both}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:reduce){#view>*{animation:none}}
+  
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
   @supports not (backdrop-filter:blur(1px)){.glass,.glass-strong,.glass-bar,.glass-chip{background:rgba(255,255,255,.94)}}
 
   .splash-pop{animation:spop .9s cubic-bezier(.2,.9,.3,1.15) both}@keyframes spop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
   .splash-glow{animation:sglow 2.2s ease-in-out infinite}@keyframes sglow{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.7;transform:scale(1.18)}}
   .splash-bar{width:0;animation:sload 1.8s ease forwards}@keyframes sload{to{width:100%}}
+
+  :root{--env-t:env(safe-area-inset-top,0px);--env-b:env(safe-area-inset-bottom,0px);--wv-t:0px;--wv-b:0px;--sat:max(var(--env-t),var(--wv-t));--sab:max(var(--env-b),var(--wv-b))}
+  html.wv{--wv-t:34px;--wv-b:14px}
+  html{scroll-behavior:smooth}
+  .app-header{padding-top:var(--sat);min-height:calc(56px + var(--sat))}
+  .side-top{padding-top:calc(16px + var(--sat))}
+  .bottom-nav{bottom:calc(12px + var(--sab))}
+  .auth-wrap{padding-top:calc(40px + var(--sat))}
+  .hero{overflow:hidden}
+  .hero::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);transform:skewX(-20deg);animation:shine 5.5s ease-in-out infinite;pointer-events:none}
+  @keyframes rise{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
+  #view.enter>*{animation:rise .6s cubic-bezier(.22,1,.36,1) both}
+  #view.enter>*:nth-child(2){animation-delay:.05s}#view.enter>*:nth-child(3){animation-delay:.1s}#view.enter>*:nth-child(4){animation-delay:.15s}#view.enter>*:nth-child(n+5){animation-delay:.2s}
+  .enter .stagger>*{animation:rise .6s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i,0)*80ms + 150ms)}
+  #flashBox>div{animation:pop .45s cubic-bezier(.22,1,.36,1)}
+  @keyframes pop{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:none}}
+  .modal-pop{animation:sheet .45s cubic-bezier(.22,1,.36,1) both}@keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .rip{position:relative;overflow:hidden}
+  .ripple{position:absolute;border-radius:9999px;background:rgba(255,255,255,.5);transform:scale(0);animation:ripple .65s ease-out;pointer-events:none}
+  @keyframes ripple{to{transform:scale(4);opacity:0}}
+  .skel{background:linear-gradient(90deg,rgba(255,255,255,.4),rgba(255,255,255,.9),rgba(255,255,255,.4));background-size:200% 100%;animation:skel 1.3s linear infinite}
+  @keyframes skel{to{background-position:-200% 0}}
+  .tab .pill{transition:background-color .35s,transform .35s cubic-bezier(.22,1,.36,1)}
+  .tab.text-indigo-600 .pill{transform:translateY(-2px) scale(1.07)}
+  button,.glass-chip{transition:transform .18s cubic-bezier(.22,1,.36,1)}
+  button:active,.glass-chip:active{transform:scale(.97)}
+  #wvHost iframe{width:100%;height:100%}
+  .btn-start{position:relative;overflow:hidden;color:#fff;background:linear-gradient(110deg,#6366f1,#8b5cf6,#d946ef,#6366f1);background-size:250% 100%;border:1px solid rgba(255,255,255,.4);box-shadow:0 10px 24px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.5);animation:startflow 3.5s linear infinite,startpulse 2s ease-in-out infinite}
+  .btn-start::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:shine 2.4s ease-in-out infinite;pointer-events:none}
+  .btn-start i{animation:nudge 1.2s ease-in-out infinite}
+  @keyframes startflow{to{background-position:250% 0}}
+  @keyframes startpulse{0%,100%{box-shadow:0 10px 24px rgba(99,102,241,.4),0 0 0 0 rgba(139,92,246,.5)}50%{box-shadow:0 10px 24px rgba(99,102,241,.4),0 0 0 10px rgba(139,92,246,0)}}
+  @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+  @keyframes shine{0%{left:-70%}60%,100%{left:130%}}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -97,7 +131,7 @@ const DOMAIN = 'taskearn.user';   // mobile number becomes  9876543210@taskearn.
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // All money is stored as integer PAISE (100 paise = 1 rupee) so there are no floating point errors.
-const DEF = { site_name: 'TaskEarnPro', upi_min: 10000, upi_max: 100000, gift_min: 1000, gift_max: 800000, currency_symbol: '₹', referral_reward: 500, referral_tasks: 5, referral_link: 'https://swiftapk.io/dashboard/download?id=810', welcome_bonus: 0, daily_checkin_reward: 500, promo_price: 800, promo_reward: 500 };
+const DEF = { site_name: 'TaskEarnPro', upi_min: 10000, upi_max: 100000, gift_min: 1000, gift_max: 800000, currency_symbol: '₹', referral_reward: 200, referral_tasks: 5, referee_bonus: 0, support_email: 'trickysofiyaofficial@gmail.com', add_upi: '6299602745@ybl', add_min: 1000, add_max: 1000000, referral_message: 'TaskEarnPro se roz paise kamao! Video dekho, simple tasks karo, daily check-in karo aur UPI, Amazon ya Google Play me redeem karo. Mera referral code {code} use karo aur extra bonus pao. Abhi download karo: {link}', referral_link: 'https://swiftapk.io/dashboard/download?id=810', welcome_bonus: 0, daily_checkin_reward: 500, promo_price: 800, promo_reward: 500 };
 const S = { user: null, profile: null, settings: {}, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {}, lb: {}, promos: {}, method: 'upi', flash: null, cat: 'all', txShown: 20, authMode: 'login', authErr: '', refPrefill: '', signingUp: false, busy: false };
 let unsubs = [], lastRoute = '';
 const cfg = k => (S.settings && S.settings[k] != null) ? S.settings[k] : DEF[k];
@@ -109,7 +143,7 @@ const TYPES = { watch: ['Watch & Earn', 'fa-circle-play'], install: ['Install & 
 const METHODS = { upi: { label: 'UPI', icon: 'fa-solid fa-building-columns', min: 'upi_min', max: 'upi_max' }, amazon: { label: 'Amazon', icon: 'fa-brands fa-amazon', min: 'gift_min', max: 'gift_max' }, gplay: { label: 'Google Play', icon: 'fa-brands fa-google-play', min: 'gift_min', max: 'gift_max' } };
 const INP = 'glass-input w-full rounded-xl px-4 py-3 text-sm outline-none';
 const CARD = 'glass rounded-2xl';
-const BTN = 'btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white';
+const BTN = 'rip btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white';
 const isPerm = e => /PERMISSION_DENIED|permission/i.test((e && (e.code || e.message)) || '');
 const badge = s => { const m = { pending: ['bg-amber-50 text-amber-700', 'fa-clock'], approved: ['bg-emerald-50 text-emerald-700', 'fa-circle-check'], paid: ['bg-emerald-50 text-emerald-700', 'fa-circle-check'], rejected: ['bg-red-50 text-red-700', 'fa-circle-xmark'] }[s] || ['bg-slate-100 text-slate-600', 'fa-circle']; return `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${m[0]}"><i class="fa-solid ${m[1]}"></i>${esc(s[0].toUpperCase() + s.slice(1))}</span>`; };
 const emptyBox = (icon, title, sub = '') => `<div class="glass rounded-2xl p-8 text-center"><i class="fa-solid ${icon} text-4xl text-slate-300"></i><p class="mt-3 font-semibold">${esc(title)}</p><p class="text-sm text-slate-500">${esc(sub)}</p></div>`;
@@ -150,7 +184,7 @@ async function credit(uid, amt, reason, lb) {
 }
 const activeTasks = () => Object.entries(S.tasks).map(([id, t]) => ({ ...t, id })).filter(t => t.status === 'active').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 const taskReward = t => t.type === 'daily' ? cfg('daily_checkin_reward') : (t.reward || 0);
-const needsProof = t => t.type !== 'daily' && !!t.proofRequired;
+const needsProof = t => t.type !== 'daily' && !!t.proofRequired && !isAutoWatch(t);
 function taskState(t) {
   const rec = S.ut[t.id];
   if (t.type === 'daily') return rec && rec.date === todayStr() && rec.status === 'approved' ? 'done' : 'available';
@@ -162,11 +196,12 @@ function taskState(t) {
 }
 const stateMsg = (s, t) => s === 'done' ? (t.type === 'daily' ? 'Already claimed. Come back tomorrow.' : 'Task already completed.') : s === 'pending' ? 'You already have a submission waiting for review.' : 'This task has reached its completion limit.';
 
-async function completeTask(id, file) {
+async function completeTask(id, file, verified) {
   const t = S.tasks[id] && { ...S.tasks[id], id };
   if (!t || t.status !== 'active') return flash('error', 'Task not found or no longer available.');
   const st = taskState(t);
   if (st !== 'available') return flash('error', stateMsg(st, t));
+  if (isAutoWatch(t) && !verified) return flash('error', 'Watch the video to complete this task.');
   const uid = S.user.uid;
   const rec = { title: t.title, type: t.type, reward: taskReward(t), ts: serverTimestamp(), date: todayStr() };
   try {
@@ -183,6 +218,7 @@ async function completeTask(id, file) {
       if (t.type !== 'daily') await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
       flash('success', t.type === 'daily' ? 'Daily reward claimed. Come back tomorrow.' : 'Task completed. Reward added to your wallet.');
     }
+    onTaskDone();
   } catch (e) { flash('error', isPerm(e) ? 'Task already completed or not available.' : (e.message || 'Something went wrong.')); }
 }
 
@@ -254,17 +290,19 @@ async function doSignup(f) {
     await set(ref(db, 'users/' + uid), { name, mobile, referralCode: code, referredBy: referrer, status: 'active', balance: 0, createdAt: serverTimestamp() });
     if (referrer) await set(ref(db, `referrals/${referrer}/${uid}`), { name, createdAt: serverTimestamp(), rewarded: false });
     const bonus = cfg('welcome_bonus'); if (bonus > 0) await credit(uid, bonus, 'Welcome bonus');
+    try { await set(ref(db, `leaderboard/${uid}/name`), name); await set(ref(db, `leaderboard/${uid}/earned`), 0); } catch (_) { /* leaderboard row is optional */ }
+    const fb = cfg('referee_bonus'); if (referrer && fb > 0) await credit(uid, fb, 'Referral bonus');
     S.signingUp = false; await boot(cred.user);
   } catch (e) { S.signingUp = false; S.authErr = authMsg(e); renderAuth(true); }
 }
-function teardown() { unsubs.forEach(u => u()); unsubs = []; Object.assign(S, { lb: {}, promos: {}, user: null, profile: null, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {} }); }
+function teardown() { unsubs.forEach(u => u()); unsubs = []; S._loaded = {}; S._lbSynced = false; S.errs = {}; S.pay = null; stopWatch(); Object.assign(S, { lb: {}, promos: {}, user: null, profile: null, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {} }); }
 
 function renderAuth(force) {
   const a = document.activeElement, box = $('#auth');
   if (!force && a && /INPUT/.test(a.tagName) && box.contains(a)) return;
   const su = S.authMode === 'signup';
   const L = (n, label, attrs) => `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600">${label}</label><input name="${n}" ${attrs} class="${INP}"></div>`;
-  box.innerHTML = `<div class="flex min-h-screen flex-col px-6 py-10">
+  box.innerHTML = `<div class="auth-wrap flex min-h-screen flex-col px-6 pb-10">
     <div class="mb-8 text-center"><img src="${LOGO}" alt="TaskEarnPro" class="mx-auto mb-4 h-24 w-24 rounded-3xl shadow-xl">
       <h1 class="text-2xl font-bold">${su ? 'Create Account' : 'Welcome Back'}</h1>
       <p class="mt-1 text-sm text-slate-500">${su ? 'Join ' + esc(cfg('site_name')) + ' and start earning' : 'Login to continue earning on ' + esc(cfg('site_name'))}</p></div>
@@ -285,31 +323,32 @@ const views = {
     const p = S.profile, first = (p.name || '').trim().split(' ')[0] || 'there';
     const chips = { all: 'All', watch: 'Watch & Earn', install: 'Install & Earn', survey: 'Survey', channel: 'Join Channel', review: 'Rate & Review', daily: 'Daily' };
     const list = activeTasks().filter(t => S.cat === 'all' || t.type === S.cat);
-    const card = t => {
+    const card = (t, i) => {
       const [label, icon] = TYPES[t.type] || TYPES.watch, st = taskState(t);
-      const cta = st === 'available' ? `<a href="#/task/${t.id}" class="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white">${t.type === 'daily' ? 'Claim Daily Reward' : 'Earn Now'}<i class="fa-solid fa-arrow-right text-xs"></i></a>`
-        : st === 'done' ? `<div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 py-3 text-sm font-semibold text-emerald-700"><i class="fa-solid fa-circle-check"></i>${t.type === 'daily' ? 'Come back tomorrow' : 'Completed'}</div>`
-        : st === 'pending' ? `<a href="#/task/${t.id}" class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 py-3 text-sm font-semibold text-amber-700"><i class="fa-solid fa-clock"></i>Pending Review</a>`
-        : `<div class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-500"><i class="fa-solid fa-ban"></i>Limit Reached</div>`;
-      return `<div class="overflow-hidden ${CARD}"><div class="relative aspect-video w-full bg-indigo-50">
-        ${t.cover ? `<img src="${t.cover}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-5xl"></i></div>`}
-        <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-900/40 to-transparent"></div>
-        <span class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 backdrop-blur-md text-xs font-semibold text-indigo-600 shadow-sm"><i class="fa-solid ${icon}"></i>${esc(label)}</span>
-        <span class="absolute bottom-3 right-3 inline-flex items-center gap-1.5 btn-primary rounded-full px-3 py-1 text-sm font-bold text-white"><i class="fa-solid fa-coins text-xs"></i>+${esc(money(taskReward(t)))}</span></div>
-        <div class="p-4"><h3 class="text-base font-bold leading-snug">${esc(t.title)}</h3><p class="mt-1 line-clamp-2 text-sm text-slate-500">${esc(t.description)}</p>
-        ${needsProof(t) ? '<p class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500"><i class="fa-solid fa-image"></i>Proof required</p>' : ''}<div class="mt-3">${cta}</div></div></div>`;
+      const pill = (cls, ic, tx) => `<span class="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${cls}"><i class="fa-solid ${ic}"></i>${tx}</span>`;
+      const cta = st === 'available' ? `<a href="#/task/${t.id}" class="btn-start inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold">${t.type === 'daily' ? 'Claim' : 'Earn'}<i class="fa-solid fa-arrow-right text-[10px]"></i></a>`
+        : st === 'done' ? pill('bg-emerald-50 text-emerald-700', 'fa-circle-check', t.type === 'daily' ? 'Tomorrow' : 'Done')
+        : st === 'pending' ? `<a href="#/task/${t.id}">${pill('bg-amber-50 text-amber-700', 'fa-clock', 'Pending')}</a>` : pill('bg-slate-100 text-slate-500', 'fa-ban', 'Full');
+      const tag = isAutoWatch(t) ? ' &middot; Auto verified' : needsProof(t) ? ' &middot; Proof' : '';
+      return `<div style="--i:${i}" class="${CARD} flex items-center gap-3 p-2.5"><a href="#/task/${t.id}" class="relative block h-[68px] w-[100px] shrink-0 overflow-hidden rounded-xl bg-indigo-50">
+        ${t.cover ? `<img src="${t.cover}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-2xl"></i></div>`}
+        <span class="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-white/80 text-[10px] text-indigo-600 backdrop-blur"><i class="fa-solid ${icon}"></i></span></a>
+        <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">${esc(t.title)}</p><p class="truncate text-[11px] text-slate-500">${esc(label)}${tag}</p>
+        <div class="mt-1.5 flex items-center justify-between gap-2"><span class="inline-flex items-center gap-1 text-sm font-extrabold text-indigo-600"><i class="fa-solid fa-coins text-[11px]"></i>+${esc(money(taskReward(t)))}</span>${cta}</div></div></div>`;
     };
     return `<div class="mb-5 flex items-center justify-between"><div><h1 class="text-xl font-bold tracking-tight">Hello, ${esc(first)}</h1><p class="text-sm text-slate-500">Complete tasks and earn rewards</p></div>
       <span class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-100 text-base font-bold text-indigo-700">${esc(first[0].toUpperCase())}</span></div>
       <div class="relative mb-6 overflow-hidden rounded-3xl hero p-5 text-white"><div class="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10"></div>
-        <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-wallet mr-1.5"></i>Wallet Balance</p><p class="relative mt-1 text-3xl font-bold">${esc(money(p.balance))}</p>
+        <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-wallet mr-1.5"></i>Wallet Balance</p><p data-bal class="relative mt-1 text-3xl font-bold">${esc(money(p.balance))}</p>
         <a href="#/wallet" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600">View Wallet <i class="fa-solid fa-arrow-right text-xs"></i></a></div>
       <div class="mb-6 grid grid-cols-2 gap-3"><a href="#/leaderboard" class="glass-chip flex items-center gap-3 rounded-2xl p-3 text-sm font-semibold"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><i class="fa-solid fa-trophy"></i></span>Leaderboard</a>
       <a href="#/promote" class="glass-chip flex items-center gap-3 rounded-2xl p-3 text-sm font-semibold"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><i class="fa-solid fa-rocket"></i></span>Promote App</a></div>
+      <a href="#/partners" class="glass-chip mb-4 flex items-center gap-3 rounded-2xl p-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white"><i class="fa-solid fa-handshake"></i></span><span class="min-w-0 flex-1"><span class="block text-sm font-bold">Offers &amp; Partners</span><span class="block text-xs text-slate-500">Surveys, offers and games with bonus rewards</span></span><i class="fa-solid fa-chevron-right text-xs text-slate-400"></i></a>
+      ${rewardedCard()}${adInline()}
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Categories</h2>
       <div class="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">${Object.entries(chips).map(([k, l]) => `<button data-act="cat" data-v="${k}" class="shrink-0 rounded-full border px-4 py-2 text-sm font-semibold ${S.cat === k ? 'border-indigo-600 bg-indigo-600 text-white' : 'glass-chip text-slate-600'}">${l}</button>`).join('')}</div>
       <div class="mb-3 flex items-center justify-between"><h2 class="text-base font-bold">Available Tasks</h2><span class="text-xs font-medium text-slate-400">${list.length} task(s)</span></div>
-      ${list.length ? `<div class="space-y-4">${list.map(card).join('')}</div>` : emptyBox('fa-list-check', 'No tasks available', 'New tasks are added regularly. Please check back soon.')}`;
+      ${!S._loaded.tasks ? skeleton() : list.length ? `<div class="space-y-3 stagger">${list.map(card).join('')}</div>` : emptyBox('fa-list-check', 'No tasks available', 'New tasks are added regularly. Please check back soon.')}`;
   },
 
   task(id) {
@@ -321,9 +360,9 @@ const views = {
     const validUrl = t.url && /^https?:\/\//i.test(t.url);
     let action = '';
     if (st === 'available') {
-      action += validUrl && t.type !== 'daily' ? `<a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" class="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 py-3.5 text-sm font-semibold text-indigo-700"><i class="fa-solid fa-up-right-from-square"></i>Start Task</a>` : '';
+      action += validUrl && t.type !== 'daily' && !isAutoWatch(t) ? `<a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" class="btn-start flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"><i class="fa-solid fa-play"></i>Start Task</a>` : '';
       if (rec && rec.status === 'rejected') action += `<div class="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-800"><i class="fa-solid fa-circle-exclamation mt-0.5 text-red-500"></i><span>Your last proof was rejected. Please submit a clear proof again.</span></div>`;
-      action += needsProof(t)
+      action += isAutoWatch(t) ? watchBlock(t) : needsProof(t)
         ? `<form data-form="proof" data-id="${id}" class="${CARD} p-4"><label class="mb-2 block text-sm font-bold"><i class="fa-solid fa-image mr-1.5 text-indigo-600"></i>Upload Proof</label>
             <input type="file" name="proof" accept="image/jpeg,image/png,image/webp" required class="block w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700">
             <p class="mt-2 text-xs text-slate-500">JPG, PNG or WEBP. Maximum 8 MB.</p><button type="submit" class="${BTN} mt-4">Submit for Review</button></form>`
@@ -331,19 +370,20 @@ const views = {
     } else if (st === 'pending') action = `<div class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><i class="fa-solid fa-clock mt-0.5 text-amber-500"></i><span>Proof submitted. Waiting for admin review.</span></div>`;
     else if (st === 'done') action = `<div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><i class="fa-solid fa-circle-check mt-0.5 text-emerald-500"></i><span>${t.type === 'daily' ? 'Reward claimed today. Come back tomorrow.' : 'You have already completed this task.'}</span></div>`;
     else action = `<div class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-100 p-4 text-sm text-slate-600"><i class="fa-solid fa-ban mt-0.5"></i><span>This task has reached its completion limit.</span></div>`;
-    return `${backBtn('#/home', 'Task Details')}<div class="overflow-hidden ${CARD}"><div class="aspect-video w-full bg-indigo-50">${t.cover ? `<img src="${t.cover}" alt="" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-6xl"></i></div>`}</div>
+    return `${backBtn('#/home', 'Task Details')}<div class="overflow-hidden ${CARD}"><div class="h-40 w-full bg-indigo-50">${t.cover ? `<img src="${t.cover}" alt="" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-6xl"></i></div>`}</div>
       <div class="p-4"><div class="flex items-center justify-between gap-3"><span class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600"><i class="fa-solid ${icon}"></i>${esc(label)}</span>
       <span class="inline-flex items-center gap-1.5 btn-primary rounded-full px-3 py-1 text-sm font-bold text-white"><i class="fa-solid fa-coins text-xs"></i>+${esc(money(taskReward(t)))}</span></div>
       <h2 class="mt-2 text-xl font-bold leading-snug">${esc(t.title)}</h2><p class="mt-2 whitespace-pre-line text-sm text-slate-600">${esc(t.description)}</p></div></div>
-      <div class="mt-4 ${CARD} p-4"><h3 class="mb-3 text-base font-bold">How to Complete</h3><ol class="space-y-3">${steps.map((s, i) => `<li class="flex items-start gap-3 text-sm text-slate-600"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-600">${i + 1}</span><span class="pt-0.5">${esc(s)}</span></li>`).join('')}</ol></div>
+      <div class="mt-4 ${CARD} p-4"><h3 class="mb-3 text-base font-bold">How to Complete</h3><ol class="space-y-3">${(isAutoWatch(t) ? watchSteps(t) : steps).map((s, i) => `<li class="flex items-start gap-3 text-sm text-slate-600"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-600">${i + 1}</span><span class="pt-0.5">${esc(s)}</span></li>`).join('')}</ol></div>
       <div class="mt-4 space-y-3">${action}</div>`;
   },
 
   wallet() {
     const rows = Object.values(S.tx).sort((a, b) => (b.ts || 0) - (a.ts || 0)), shown = rows.slice(0, S.txShown);
     return `<div class="relative mb-6 overflow-hidden rounded-3xl hero p-5 text-white"><div class="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10"></div>
-      <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-coins mr-1.5"></i>Available Balance</p><p class="relative mt-1 text-3xl font-bold">${esc(money(S.profile.balance))}</p>
-      <a href="#/withdraw" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-gift"></i>Redeem</a></div>
+      <p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-coins mr-1.5"></i>Available Balance</p><p data-bal class="relative mt-1 text-3xl font-bold">${esc(money(S.profile.balance))}</p>
+      <a href="#/withdraw" class="relative mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-600"><i class="fa-solid fa-gift"></i>Redeem</a>
+      <a href="#/addmoney" class="relative ml-2 mt-4 inline-flex items-center gap-2 rounded-xl border border-white/40 bg-white/20 px-4 py-2.5 text-sm font-semibold text-white"><i class="fa-solid fa-circle-plus"></i>Add Coins</a></div>
       <h2 class="mb-3 text-base font-bold">Transaction History</h2>
       ${!rows.length ? emptyBox('fa-receipt', 'No transactions yet.', 'Complete a task to earn your first reward.') :
       `<div class="divide-y divide-slate-100 ${CARD}">${shown.map(r => { const c = r.type === 'credit'; return `<div class="flex items-center gap-3 p-3.5"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${c ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}"><i class="fa-solid ${c ? 'fa-arrow-down' : 'fa-arrow-up'} text-sm"></i></span>
@@ -370,13 +410,13 @@ const views = {
 
   leaderboard() {
     const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
-    const rows = Object.entries(S.lb).map(([id, v]) => ({ id, ...v })).filter(r => r.earned > 0).sort((a, b) => b.earned - a.earned).slice(0, 50);
+    const rows = Object.entries(S.lb).map(([id, v]) => ({ id, ...v })).filter(r => r.name).map(r => ({ ...r, earned: r.earned || 0 })).sort((a, b) => b.earned - a.earned).slice(0, 50);
     const me = rows.findIndex(r => r.id === S.user.uid);
     const medal = i => i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-200 text-slate-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600';
     return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-5 text-sm text-slate-500">Top earners of all time</p>
       <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p>
       <p class="relative mt-1 text-3xl font-bold">${me >= 0 ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${me >= 0 ? 'Total earned ' + esc(money(rows[me].earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
-      ${!rows.length ? emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!') : `<div class="divide-y divide-slate-100 ${CARD}">${rows.map((r, i) => `<div class="flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/60' : ''}">
+      ${S.errs.lb ? emptyBox('fa-lock', 'Leaderboard is locked', 'Publish the latest Firebase rules (leaderboard permission denied).') : !rows.length ? emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!') : `<div class="divide-y divide-slate-100 ${CARD}">${rows.map((r, i) => `<div class="flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/60' : ''}">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${medal(i)}">${i < 3 ? `<i class="fa-solid ${i === 0 ? 'fa-crown' : 'fa-medal'}"></i>` : i + 1}</span>
         <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-xs text-slate-400">Rank #${i + 1}</p></div><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('')}</div>`}`;
   },
@@ -394,7 +434,6 @@ const views = {
       ${L('What should users do?', `<select name="ptype" class="${INP}"><option value="install">Install the app</option><option value="review">Rate and review</option><option value="channel">Join the channel</option><option value="watch">Watch a video</option></select>`)}
       ${L('Number of users (10 - 1000)', `<input name="pqty" inputmode="numeric" required value="10" class="${INP}">`)}
       ${L('Instructions (optional)', `<textarea name="pnote" rows="2" maxlength="200" class="${INP}" placeholder="Anything users must do?"></textarea>`)}
-      <p id="promoCost" class="text-sm font-semibold text-indigo-600">Total cost: ${esc(money(10 * price))}</p>
       <button type="submit" class="${BTN}"><i class="fa-solid fa-rocket"></i>Submit Promotion</button></form>
       <h2 class="mb-3 mt-6 text-base font-bold">Your Promotions</h2>
       ${!list.length ? emptyBox('fa-rocket', 'No promotions yet.') : `<div class="divide-y divide-slate-100 ${CARD}">${list.map(p => `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="truncate text-sm font-bold">${esc(p.name)}</p>
@@ -422,28 +461,30 @@ const views = {
       <div class="min-w-0"><p class="truncate text-lg font-bold">${esc(p.name)}</p><p class="text-sm text-slate-500"><i class="fa-solid fa-mobile-screen-button mr-1"></i>${esc(p.mobile)}</p></div></div>
       <div class="mb-5 ${CARD} p-4"><p class="text-xs text-slate-500">Referral Code</p><p class="selectable mt-1 text-lg font-bold tracking-widest text-indigo-600">${esc(p.referralCode)}</p></div>
       <form data-form="name" class="mb-5 space-y-3 ${CARD} p-4"><label class="block text-sm font-bold">Edit Name</label><input name="name" value="${esc(p.name)}" maxlength="60" required class="${INP}"><button type="submit" class="${BTN}">Save Changes</button></form>
+      ${legalMenu()}
       <button data-act="logout" class="flex w-full items-center justify-center gap-2 rounded-xl bg-red-50 py-3.5 text-sm font-semibold text-red-600"><i class="fa-solid fa-right-from-bracket"></i>Logout</button>`;
   }
 };
 
 // ================= shell + routing =================
 function buildShell() {
-  const items = [['#/home', 'fa-house', 'Home'], ['#/wallet', 'fa-wallet', 'Wallet'], ['#/leaderboard', 'fa-trophy', 'Leaderboard'], ['#/refer', 'fa-users', 'Refer & Earn'], ['#/promote', 'fa-rocket', 'Promote Your App'], ['#/profile', 'fa-user', 'Profile']];
+  const items = [['#/home', 'fa-house', 'Home'], ['#/partners', 'fa-handshake', 'Offers & Partners'], ['#/wallet', 'fa-wallet', 'Wallet'], ['#/addmoney', 'fa-circle-plus', 'Add Coins'], ['#/leaderboard', 'fa-trophy', 'Leaderboard'], ['#/refer', 'fa-users', 'Refer & Earn'], ['#/promote', 'fa-rocket', 'Promote Your App'], ['#/profile', 'fa-user', 'Profile']];
   const tabs = [['home', '#/home', 'fa-house', 'Home'], ['wallet', '#/wallet', 'fa-wallet', 'Wallet'], ['rank', '#/leaderboard', 'fa-trophy', 'Rank'], ['refer', '#/refer', 'fa-users', 'Refer'], ['profile', '#/profile', 'fa-user', 'Profile']];
   $('#shell').innerHTML = `
-  <header class="glass-bar sticky top-0 z-30 flex h-14 items-center justify-between px-4">
+  <header class="glass-bar app-header sticky top-0 z-30 flex items-center justify-between px-4">
     <a href="#/home" class="flex items-center gap-2.5"><img src="${LOGO}" alt="" class="h-9 w-9 rounded-xl"><span class="js-site text-base font-bold tracking-tight"></span></a>
     <button type="button" id="menuBtn" aria-label="Open menu" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 active:bg-slate-100"><i class="fa-solid fa-bars text-lg"></i></button></header>
   <div id="drawer" class="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 overflow-hidden">
     <div id="overlay" class="absolute inset-0 bg-slate-900/30 opacity-0 backdrop-blur-sm transition-opacity duration-300"></div>
     <aside id="sidebar" class="absolute left-0 top-0 flex h-full w-72 -translate-x-full flex-col glass-strong rounded-r-3xl transition-transform duration-300">
-      <div class="flex items-center justify-between border-b border-slate-100 p-4"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><i class="fa-solid fa-user"></i></span>
+      <div class="side-top flex items-center justify-between border-b border-slate-100 p-4"><div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><i class="fa-solid fa-user"></i></span>
         <div class="min-w-0"><p id="sbName" class="truncate text-sm font-semibold"></p><p id="sbMobile" class="text-xs text-slate-500"></p></div></div>
         <button type="button" id="closeBtn" aria-label="Close menu" class="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 active:bg-slate-100"><i class="fa-solid fa-xmark text-lg"></i></button></div>
       <nav class="flex-1 space-y-1 p-3">${items.map(i => `<a href="${i[0]}" class="side-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-50"><i class="fa-solid ${i[1]} w-5 text-center"></i>${i[2]}</a>`).join('')}</nav>
       <div class="border-t border-slate-100 p-3"><button data-act="logout" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-red-600 active:bg-red-50"><i class="fa-solid fa-right-from-bracket w-5 text-center"></i>Logout</button></div></aside></div>
-  <main id="view" class="px-4 pb-28 pt-5"></main>
-  <nav class="glass-strong fixed bottom-3 left-1/2 z-30 grid w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 grid-cols-5 rounded-[28px] px-2 pb-2 pt-2">
+  <main id="view" class="px-4 pb-32 pt-5"></main>
+  <div id="adSticky" class="bottom-nav hidden fixed left-1/2 z-20 w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2" style="margin-bottom:76px"></div>
+  <nav class="glass-strong bottom-nav fixed left-1/2 z-30 grid w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 grid-cols-5 rounded-[28px] px-2 pb-2 pt-2">
     ${tabs.map(t => `<a href="${t[1]}" data-tab="${t[0]}" class="tab flex flex-col items-center gap-1 text-[11px] font-semibold text-slate-400"><span class="pill flex h-8 w-14 items-center justify-center rounded-full"><i class="fa-solid ${t[2]} text-base"></i></span>${t[3]}</a>`).join('')}</nav>`;
   const d = $('#drawer'), o = $('#overlay'), s = $('#sidebar');
   const open = () => { d.classList.remove('pointer-events-none'); o.classList.remove('opacity-0'); s.classList.remove('-translate-x-full'); };
@@ -457,63 +498,48 @@ function render(force) {
   const a = document.activeElement;
   if (!force && a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && $('#view').contains(a)) return;
   const [v, arg] = route(), key = v + '/' + (arg || '');
+  if (!force && S.watch && v === 'task' && S.watch.taskId === arg) { updateWatchUI(); return; }   // never rebuild the video player while it is playing
   $('#view').innerHTML = '<div id="flashBox">' + flashHTML() + '</div>' + views[v](arg);
-  const tab = { home: 'home', task: 'home', wallet: 'wallet', withdraw: 'wallet', leaderboard: 'rank', promote: 'profile', refer: 'refer', profile: 'profile' }[v];
+  const tab = { home: 'home', task: 'home', wallet: 'wallet', withdraw: 'wallet', addmoney: 'wallet', partners: 'home', leaderboard: 'rank', promote: 'profile', terms: 'profile', privacy: 'profile', contact: 'profile', refer: 'refer', profile: 'profile' }[v];
   document.querySelectorAll('.tab').forEach(t => { const on = t.dataset.tab === tab; t.classList.toggle('text-indigo-600', on); t.classList.toggle('text-slate-400', !on); t.querySelector('.pill').classList.toggle('bg-indigo-50', on); });
   document.querySelectorAll('.side-link').forEach(l => { const on = l.getAttribute('href') === '#/' + ({ task: 'home', withdraw: 'wallet' }[v] || v); l.classList.toggle('bg-indigo-50', on); l.classList.toggle('text-indigo-600', on); });
   document.querySelectorAll('.js-site').forEach(e => e.textContent = cfg('site_name'));
   $('#sbName').textContent = S.profile.name; $('#sbMobile').textContent = S.profile.mobile;
-  if (key !== lastRoute) { window.scrollTo(0, 0); lastRoute = key; }
+  const enter = key !== lastRoute; if (enter) { window.scrollTo(0, 0); lastRoute = key; }
+  afterRender(v, arg, enter);
 }
-window.addEventListener('hashchange', () => { S.flash = null; render(true); });
+window.addEventListener('hashchange', () => { S.flash = null; closeModal(); render(true); });
 
-// ================= events =================
-document.addEventListener('contextmenu', e => e.preventDefault());
-$('#auth').addEventListener('click', e => { if (e.target.closest('[data-act="mode"]')) { S.authMode = S.authMode === 'login' ? 'signup' : 'login'; S.authErr = ''; renderAuth(true); } });
-$('#auth').addEventListener('submit', e => { e.preventDefault(); const f = e.target; busy(() => f.dataset.form === 'signup' ? doSignup(f) : doLogin(f)); });
-$('#shell').addEventListener('click', e => {
-  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
-  if (a === 'cat') { S.cat = b.dataset.v; render(true); }
-  else if (a === 'more') { S.txShown += 20; render(true); }
-  else if (a === 'method') { S.method = b.dataset.v; render(true); }
-  else if (a === 'preset') { const i = document.querySelector('#view input[name=amount]'); if (i) i.value = b.dataset.v; }
-  else if (a === 'complete') busy(() => completeTask(b.dataset.id, null));
-  else if (a === 'logout') signOut(auth);
-  else if (a === 'copy') { const t = b.dataset.v, old = b.innerHTML, done = () => { b.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copied'; setTimeout(() => b.innerHTML = old, 1500); };
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); done(); } }
-});
-$('#shell').addEventListener('input', e => { if (e.target.name === 'pqty') { const q = parseInt(e.target.value, 10) || 0; $('#promoCost').textContent = 'Total cost: ' + money(q * cfg('promo_price')); } });
-$('#shell').addEventListener('submit', e => {
-  e.preventDefault(); const f = e.target, k = f.dataset.form;
-  if (k === 'proof') busy(() => completeTask(f.dataset.id, f.proof.files[0]));
-  else if (k === 'withdraw') busy(() => doWithdraw(f.upi ? f.upi.value.trim() : '', f.amount.value));
-  else if (k === 'promote') busy(() => doPromote(f));
-  else if (k === 'name') busy(async () => { const n = f.name.value.trim(); if (n.length < 2 || n.length > 60) return flash('error', 'Please enter a valid name (2-60 characters).'); try { await set(ref(db, `users/${S.user.uid}/name`), n); flash('success', 'Profile updated.'); } catch (_) { flash('error', 'Could not update profile.'); } });
-});
+// ================= EXTENSIONS: safe-area, animation, ads, watch-verify, add coins, share, legal =================
+S.errs = {}; S._loaded = {}; S.watchSecs = {}; S.watch = null; S.pay = null; S.ads = {}; S.advToday = 0; S.dep = {}; S._done = 0; S._qr = {};
+const ENC = encodeURIComponent;
+const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return S['_ls_' + k] || null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { S['_ls_' + k] = v; } };
+function fmtT(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+const copyTxt = t => new Promise(res => { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(res, res); } else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); res(); } });
+const openExt = u => { const w = window.open(u, '_blank', 'noopener'); if (!w) location.href = u; };
 
-// ================= data + boot =================
-function listen(path, key, q) { unsubs.push(onValue(q || ref(db, path), s => { S[key] = s.val() || {}; render(); }, e => console.error(path, e.message))); }
-async function boot(u) {
-  S.user = u;
-  const snap = await get(ref(db, 'users/' + u.uid));
-  if (!snap.exists()) { S.authErr = 'Account profile not found. Please create an account.'; await signOut(auth); return; }
-  if (snap.val().status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; await signOut(auth); return; }
-  S.profile = snap.val(); const uid = u.uid;
-  listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
-  listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
-  listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
-  unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
-  buildShell(); hideBoot(); $('#auth').classList.add('hidden'); $('#shell').classList.remove('hidden'); render(true);
+// ---- APK / WebView: when the app draws under the status bar, push the header and nav inside the safe area
+function detectWV() { const edge = /Android/i.test(navigator.userAgent) && (screen.height - window.innerHeight) < 20 && !document.fullscreenElement; document.documentElement.classList.toggle('wv', edge || /[?&]safe=1/.test(location.search)); }
+detectWV(); window.addEventListener('resize', detectWV);
+
+// ---- button ripple
+document.addEventListener('pointerdown', e => { const b = e.target.closest('.rip,.btn-start'); if (!b) return; const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), s = document.createElement('span'); s.className = 'ripple'; s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`; b.appendChild(s); setTimeout(() => s.remove(), 700); }, { passive: true });
+
+const skeleton = () => `<div class="space-y-3">${[0, 1, 2, 3].map(() => '<div class="glass flex items-center gap-3 rounded-2xl p-2.5"><div class="skel h-[68px] w-[100px] rounded-xl"></div><div class="flex-1 space-y-2"><div class="skel h-3.5 w-2/3 rounded-full"></div><div class="skel h-3 w-1/3 rounded-full"></div><div class="skel h-7 w-full rounded-lg"></div></div></div>').join('')}</div>`;
+function animateNum(el, from, to) {
+  if (from === to) { el.textContent = money(to); return; }
+  const t0 = performance.now(), dur = 900;
+  const step = now => { const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = money(Math.round(from + (to - from) * e)); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
 }
-onValue(ref(db, 'settings'), s => { S.settings = s.val() || {}; document.title = cfg('site_name'); document.querySelectorAll('.js-site').forEach(e => e.textContent = cfg('site_name')); if (!S.user) renderAuth(); else render(); });
-const qref = new URLSearchParams(location.search).get('ref');
-if (qref) { S.authMode = 'signup'; S.refPrefill = qref.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-onAuthStateChanged(auth, async u => {
-  authResolved = true;
-  if (S.signingUp) return;
-  if (u) { await boot(u); }
-  else { teardown(); hideBoot(); $('#shell').classList.add('hidden'); $('#auth').classList.remove('hidden'); renderAuth(true); }
-});
-</script>
-</body>
-</html>
+function afterRender(v, arg, enter) {
+  const view = $('#view');
+  if (enter) { view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter'); clearTimeout(S._enT); S._enT = setTimeout(() => view.classList.remove('enter'), 1400); }
+  const bal = S.profile.balance || 0;
+  document.querySelectorAll('[data-bal]').forEach(el => animateNum(el, S._shownBal == null ? 0 : S._shownBal, bal));
+  S._shownBal = bal;
+  updateAds();
+  const q = $('#qrBox'); if (q) drawQR(q);
+  if (S.watch && !(v === 'task' && S.watch.taskId === arg)) stopWatch();
+  if ($('#wvHost') && v === 'tas
