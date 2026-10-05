@@ -233,11 +233,6 @@ async function doWithdraw(upi, amtStr) {
     // 1) debit atomically (aborts if balance is too low)
     const r = await runTransaction(ref(db, `users/${uid}/balance`), c => (typeof c === 'number' && c >= amt) ? c - amt : (c === null ? 0 : undefined));
     if (!r.committed) return flash('error', 'Insufficient wallet balance.');
-    // 2) create the request + transaction record. If this fails we refund.
-    const wref = push(ref(db, `withdrawals/${uid}`));
-    try {
-      const rec = { uid, name: S.profile.name, mobile: S.profile.mobile, method: mk, amount: amt, status: 'pending', createdAt: serverTimestamp() };
-      if (mk === 'upi') rec.upi = upi;
       await set(wref, rec);
       await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: amt, reason: 'Redeem request (' + m.label + ')', ref: wref.key, ts: serverTimestamp() });
       flash('success', 'Redeem request submitted.');
@@ -263,7 +258,6 @@ async function doPromote(f) {
     f.reset(); flash('success', 'Promotion submitted. It goes live after admin approval.');
   } catch (e) { await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) + cost); flash('error', 'Could not submit the promotion. Please try again.'); }
 }
-
 // ================= auth =================
 const authMsg = e => { const c = (e && e.code) || ''; return c.includes('email-already-in-use') ? 'This mobile number is already registered. Please login.' : /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? 'Invalid mobile number or password.' : c.includes('too-many-requests') ? 'Too many attempts. Please try again later.' : c.includes('network') ? 'Network error. Check your connection.' : c.includes('operation-not-allowed') ? 'Enable Email/Password sign-in in Firebase Authentication.' : 'Something went wrong. Please try again.'; };
 const genCode = () => { const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; const a = crypto.getRandomValues(new Uint8Array(8)); a.forEach(n => s += ch[n % ch.length]); return s; };
@@ -308,6 +302,9 @@ function renderAuth(force) {
       <p class="mt-1 text-sm text-slate-500">${su ? 'Join ' + esc(cfg('site_name')) + ' and start earning' : 'Login to continue earning on ' + esc(cfg('site_name'))}</p></div>
     ${S.authErr ? `<div class="mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-800"><i class="fa-solid fa-circle-exclamation mt-0.5 text-red-500"></i><span>${esc(S.authErr)}</span></div>` : ''}
     <form data-form="${su ? 'signup' : 'login'}" class="space-y-4 ${CARD} p-5">
+      ${su ? L('name', 'Full Name', 'type="text" maxlength="60" required placeholder="Your full name"') : ''}
+      ${L('mobile', 'Mobile Number', 'type="tel" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" required placeholder="10-digit mobile number"')}
+      ${L('password', 'Password', 'type="password" required minlength="' + (su ? 6 : 1) + '" placeholder="Enter password"')}
       ${su ? L('confirm', 'Confirm Password', 'type="password" required minlength="6" placeholder="Re-enter password"') + L('refcode', 'Referral Code (optional)', 'type="text" maxlength="20" value="' + esc(S.refPrefill) + '" placeholder="e.g. ABC12345"') : ''}
       <button type="submit" class="${BTN}">${su ? 'Create Account' : 'Login'}</button>
     </form>
