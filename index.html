@@ -218,6 +218,8 @@ async function completeTask(id, file, verified) {
       if (t.type !== 'daily') await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
       flash('success', t.type === 'daily' ? 'Daily reward claimed. Come back tomorrow.' : 'Task completed. Reward added to your wallet.');
     }
+    onTaskDone();
+  } catch (e) { flash('error', isPerm(e) ? 'Task already completed or not available.' : (e.message || 'Something went wrong.')); }
 }
 
 async function doWithdraw(upi, amtStr) {
@@ -300,6 +302,7 @@ function renderAuth(force) {
   if (!force && a && /INPUT/.test(a.tagName) && box.contains(a)) return;
   const su = S.authMode === 'signup';
   const L = (n, label, attrs) => `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600">${label}</label><input name="${n}" ${attrs} class="${INP}"></div>`;
+  box.innerHTML = `<div class="auth-wrap flex min-h-screen flex-col px-6 pb-10">
     <div class="mb-8 text-center"><img src="${LOGO}" alt="TaskEarnPro" class="mx-auto mb-4 h-24 w-24 rounded-3xl shadow-xl">
       <h1 class="text-2xl font-bold">${su ? 'Create Account' : 'Welcome Back'}</h1>
       <p class="mt-1 text-sm text-slate-500">${su ? 'Join ' + esc(cfg('site_name')) + ' and start earning' : 'Login to continue earning on ' + esc(cfg('site_name'))}</p></div>
@@ -538,10 +541,4 @@ function afterRender(v, arg, enter) {
   document.querySelectorAll('[data-bal]').forEach(el => animateNum(el, S._shownBal == null ? 0 : S._shownBal, bal));
   S._shownBal = bal;
   updateAds();
-  const q = $('#qrBox'); if (q) drawQR(q);
-  if (S.watch && !(v === 'task' && S.watch.taskId === arg)) stopWatch();
-  if ($('#wvHost') && v === 'task') startWatch(arg);
-  maybeSyncLb();
-}
-
-// ---- leaderboard: every user gets a row; own total is synced from the wall
+  const q = $('#qrBox'); if (q) draw
