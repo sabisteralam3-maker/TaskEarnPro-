@@ -894,7 +894,7 @@ const OFFICIAL_LOGO = { cpx: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWQA
 const DEFAULT_PARTNERS = [['pubscale', 'PubScale', 'task', 30], ['timewall', 'TimeWalls', 'task', 20], ['cpidroid', 'Cpi Droid', 'task', 0], ['cpx', 'CPX Research', 'survey', 35], ['pollreach', 'Poll Reach', 'survey', 20], ['theoremreach', 'Theorem Reach', 'survey', 0], ['playtime', 'Playtime', 'gaming', 0], ['spawntap', 'SpawnTap', 'gaming', 0], ['capsbit', 'Capsbit', 'gaming', 0]];
 const CATS = { task: 'Task Partners', survey: 'Survey Partners', gaming: 'Gaming Partners', other: 'More Partners' };
 const PCOLS = { task: ['#22d3ee', '#3b82f6'], survey: ['#c4b5fd', '#6366f1'], gaming: ['#60a5fa', '#a855f7'], other: ['#f0abfc', '#6366f1'] };
-const BUILTIN_URL = { cpx: 'https://task-earn-pro-sand.vercel.app/api/wall?partner=cpx&uid={uid}&token={token}', capsbit: 'https://offerwall.capsbit.com/d3369054f18f3ccfe607c0ea4a9f15/{uid}' };   // live even if the admin never added a link
+const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=', capsbit: 'https://offerwall.capsbit.com/d3369054f18f3ccfe607c0ea4a9f15/{uid}' };   // live even if the admin never added a link
 const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, capsbit: { name: 'Capsbit', category: 'task', bonus: 0, order: 2 } };
 const partnerList = () => {
   const adminRows = Object.entries(S.partners || {}).map(([id, p]) => ({ ...p, id }));
@@ -902,7 +902,7 @@ const partnerList = () => {
   Object.entries(PINNED).forEach(([id, d]) => { if (!rows.some(r => r.id === id)) rows.push({ id, ...d, enabled: true }); });
   return rows.map(p => {
     const pin = PINNED[p.id];
-    const url = p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
+    const url = p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
     return { ...p, order: pin ? pin.order : (p.order || 50) + 10, logo: p.logo || OFFICIAL_LOGO[p.id] || null, url, live: !!(url || p.code) };
   }).filter(p => p.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
 };
