@@ -297,9 +297,12 @@ async function completeTask(id, file, verified) {
       if (!file) return flash('error', 'Please choose a proof image.');
       const img = await compress(file, 900, 0.72);
       await set(ref(db, `proofs/${uid}/${id}`), img);
-      await set(ref(db, `userTasks/${uid}/${id}`), { ...rec, status: 'pending' });           // one record per user+task = no duplicates
+      let autoOk = false;
+      if ((t.verifyWords || []).length) { try { autoOk = await ocrCheck(file, t.verifyWords); } catch (_) { autoOk = false; } }
+      await set(ref(db, `userTasks/${uid}/${id}`), autoOk ? { ...rec, status: 'approved', auto: true } : { ...rec, status: 'pending' });
+      if (autoOk && rec.reward > 0) await credit(uid, rec.reward, 'Task completed: ' + t.title, true);           // one record per user+task = no duplicates
       await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
-      flash('success', 'Proof submitted. Waiting for admin review.');
+      flash('success', autoOk ? 'Screenshot verified. Reward added to your wallet.' : 'Screenshot could not be verified automatically. It is pending admin review.');
     } else {
       await set(ref(db, `userTasks/${uid}/${id}`), { ...rec, status: 'approved' });          // rules reject a second claim
       if (rec.reward > 0) await credit(uid, rec.reward, t.type === 'daily' ? 'Daily check-in reward' : 'Task completed: ' + t.title, true);
@@ -311,6 +314,7 @@ async function completeTask(id, file, verified) {
 }
 
 async function doWithdraw(upi, amtStr) {
+  if (cfg('redeem_maint') === true) return flash('error', 'Server down. Please try again later.');
   const mk = S.method, m = METHODS[mk], amt = parseMoney(amtStr), uid = S.user.uid, min = cfg(m.min), max = cfg(m.max);
   const fee = mk === 'upi' && amt ? Math.round(amt * (cfg('upi_fee_pct') || 0) / 100) : 0;   // UPI service fee, taken from the amount
   if (mk === 'upi' && !/^[a-zA-Z0-9._-]{2,64}@[a-zA-Z]{2,32}$/.test(upi)) return flash('error', 'Invalid UPI ID.');
@@ -520,7 +524,7 @@ const views = {
     const L = (label, inner) => `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600">${label}</label>${inner}</div>`;
     return `${backBtn('#/home', 'Promote Your App')}
       <div class="mb-4 ${CARD} p-4"><p class="text-sm text-slate-600">Get real users to install, rate or join your app or channel. You pay <b>${esc(money(price))}</b> per completed task from your wallet. Users earn ${esc(money(cfg('promo_reward')))} per task. After admin approval your task goes live.</p>
-      <p class="mt-2 text-xs text-slate-500">Wallet balance: <b>${esc(money(S.profile.balance))}</b></p></div>
+      <p class="mt-2 text-xs text-slate-500">Wallet balance: <b>${esc(money(S.profile.balance))}</b></p><a href="#/addmoney" class="btn-start mt-3 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold"><i class="fa-solid fa-circle-plus"></i>Add Coins</a></div>
       <form data-form="promote" class="space-y-4 ${CARD} p-4">
       ${L('App or Channel Name', `<input name="pname" maxlength="60" required placeholder="e.g. My Game App" class="${INP}">`)}
       ${L('Link (Play Store / channel link)', `<input name="purl" type="url" required placeholder="https://" class="${INP}">`)}
@@ -762,7 +766,8 @@ function tick() {
   if (w.player && w.player.getPlayerState) { try { playing = w.player.getPlayerState() === 1; rate = w.player.getPlaybackRate ? w.player.getPlaybackRate() : 1; } catch (_) {} }
   else if (w.video) { playing = !w.video.paused && !w.video.ended; rate = w.video.playbackRate; }
   w.state = { playing, rate };
-  if (playing && !document.hidden && rate <= 1) S.watchSecs[w.taskId] = (S.watchSecs[w.taskId] || 0) + 1;
+  const ct = watchPos(w), dt = (ct != null && w.lastT != null) ? ct - w.lastT : null; w.lastT = ct;
+  if (playing && !document.hidden && rate <= 1 && (dt === null || (dt > 0.3 && dt < 1.6))) S.watchSecs[w.taskId] = (S.watchSecs[w.taskId] || 0) + 1;
   updateWatchUI();
   if ((S.watchSecs[w.taskId] || 0) >= w.need && !w.done) { w.done = true; finishWatch(); }
 }
@@ -894,15 +899,16 @@ const OFFICIAL_LOGO = { cpx: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWQA
 const DEFAULT_PARTNERS = [['pubscale', 'PubScale', 'task', 30], ['timewall', 'TimeWalls', 'task', 20], ['cpidroid', 'Cpi Droid', 'task', 0], ['cpx', 'CPX Research', 'survey', 35], ['pollreach', 'Poll Reach', 'survey', 20], ['theoremreach', 'Theorem Reach', 'survey', 0], ['playtime', 'Playtime', 'gaming', 0], ['spawntap', 'SpawnTap', 'gaming', 0], ['capsbit', 'Capsbit', 'gaming', 0]];
 const CATS = { task: 'Task Partners', survey: 'Survey Partners', gaming: 'Gaming Partners', other: 'More Partners' };
 const PCOLS = { task: ['#22d3ee', '#3b82f6'], survey: ['#c4b5fd', '#6366f1'], gaming: ['#60a5fa', '#a855f7'], other: ['#f0abfc', '#6366f1'] };
-const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=', capsbit: 'https://offerwall.capsbit.com/d3369054f18f3ccfe607c0ea4a9f15/{uid}' };   // live even if the admin never added a link
-const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, capsbit: { name: 'Capsbit', category: 'task', bonus: 0, order: 2 } };
+const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=' };   // live even if the admin never added a link
+const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, };
 const partnerList = () => {
   const adminRows = Object.entries(S.partners || {}).map(([id, p]) => ({ ...p, id }));
-  const rows = adminRows.length ? adminRows : DEFAULT_PARTNERS.map(([id, name, category, bonus], i) => ({ id, name, category, bonus, order: i + 1, enabled: true }));
-  Object.entries(PINNED).forEach(([id, d]) => { if (!rows.some(r => r.id === id)) rows.push({ id, ...d, enabled: true }); });
+  const rows0 = adminRows.length ? adminRows : DEFAULT_PARTNERS.map(([id, name, category, bonus], i) => ({ id, name, category, bonus, order: i + 1, enabled: true }));
+  Object.entries(PINNED).forEach(([id, d]) => { if (!rows0.some(r => r.id === id)) rows0.push({ id, ...d, enabled: true }); });
+  const rows = rows0.filter(r => r.id !== 'capsbit');   // Capsbit removed from the app
   return rows.map(p => {
     const pin = PINNED[p.id];
-    const url = p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
+    const url = p.id !== 'cpx' ? '' : p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
     return { ...p, order: pin ? pin.order : (p.order || 50) + 10, logo: p.logo || OFFICIAL_LOGO[p.id] || null, url, live: !!(url || p.code) };
   }).filter(p => p.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
 };
@@ -916,7 +922,7 @@ views.partners = function () {
     return `<div><button data-act="partner" data-id="${esc(p.id)}" class="rip relative block aspect-square w-full overflow-hidden rounded-[22px] p-[2px] ${p.live ? '' : 'opacity-70'}" style="background:linear-gradient(135deg,${c1},${c2});box-shadow:0 8px 22px ${c2}55"><span class="absolute inset-[2px] rounded-[20px] bg-slate-950"></span>
       ${p.bonus ? `<span class="absolute inset-x-[2px] top-[2px] z-10 rounded-t-[20px] bg-violet-600 py-1 text-center text-[10px] font-extrabold tracking-wider text-white">${esc(p.bonus)}% BONUS</span>` : ''}
       <span class="relative z-10 flex h-full w-full items-center justify-center p-3 ${p.bonus ? 'pt-6' : ''}">${p.logo ? `<img src="${esc(p.logo)}" alt="" loading="lazy" class="max-h-full max-w-full object-contain">` : `<span class="text-center text-[15px] font-extrabold leading-tight text-white">${esc(p.name)}</span>`}</span>
-      ${p.live ? '<span class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2"><span class="live-pill"><span class="live-dot"></span>Live</span></span>' : '<span class="absolute bottom-1.5 left-0 right-0 z-10 text-center text-[9px] font-bold uppercase tracking-wider text-slate-400">Soon</span>'}</button>
+      ${p.live ? '<span class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2"><span class="live-pill"><span class="live-dot"></span>Live</span></span>' : '<span class="absolute bottom-1.5 left-0 right-0 z-10 text-center text-[9px] font-bold uppercase tracking-wider text-slate-400">Upcoming</span>'}</button>
       <p class="mt-2 text-center text-xs font-bold">${esc(p.name)}</p></div>`; };
   const sec = k => { const items = rest.filter(p => p.category === k); return items.length ? `<div class="mb-6"><div class="mb-3 flex items-center gap-2.5"><span class="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-slate-900 shadow"><i class="fa-solid fa-star text-sm"></i></span><h2 class="text-sm font-extrabold uppercase tracking-widest">${CATS[k]}</h2></div><div class="grid grid-cols-3 gap-3">${items.map(tile).join('')}</div></div>` : ''; };
   const liveSec = liveTop.length ? `<div class="mb-6"><div class="mb-3 flex items-center gap-2.5"><span class="live-dot"></span><h2 class="text-sm font-extrabold uppercase tracking-widest">Live Now</h2></div><div class="grid grid-cols-1 gap-4 sm:grid-cols-2">${liveTop.map(liveCard).join('')}</div></div>` : '';
@@ -1012,7 +1018,7 @@ views.extra = function (arg) {
     const st = !live ? '<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Coming soon</span>'
       : left > 0 ? `<span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">${left} left today</span>` : '<span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-700">Done today</span>';
     return `<button data-act="xopen" data-k="${k}" class="rip glass relative flex flex-col items-start gap-3 rounded-2xl p-4 text-left ${live ? '' : 'opacity-80'}"><span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${f.c} text-xl text-white shadow-lg"><i class="fa-solid ${f.icon}"></i></span><span><span class="block text-sm font-extrabold">${f.title}</span><span class="block text-xs text-slate-500">${f.sub}</span></span>${st}</button>`; };
-  return `<h1 class="text-xl font-bold"><i class="fa-solid fa-gem mr-1.5 text-indigo-600"></i>Extra</h1><p class="mb-5 text-sm text-slate-500">Bonus ways to earn coins every day</p><div class="grid grid-cols-2 gap-3">${Object.keys(XF).map(card).join('')}${contestCard()}</div>`;
+  return `<h1 class="text-xl font-bold"><i class="fa-solid fa-gem mr-1.5 text-indigo-600"></i>Extra</h1><p class="mb-5 text-sm text-slate-500">Bonus ways to earn coins every day</p><div class="grid grid-cols-2 gap-3">${Object.keys(XF).map(card).join('')}</div>`;
 };
 function xPage(k) {
   const f = XF[k], left = xLeft(k), head = backBtn('#/extra', f.title);
@@ -1114,7 +1120,8 @@ function xvTick() {
   const w = S.xw, v = S.xv; if (!w || !v) return; let playing = false, rate = 1;
   if (w.player && w.player.getPlayerState) { try { playing = w.player.getPlayerState() === 1; rate = w.player.getPlaybackRate ? w.player.getPlaybackRate() : 1; } catch (_) {} }
   else if (w.video) { playing = !w.video.paused && !w.video.ended; rate = w.video.playbackRate; }
-  if (playing && !document.hidden && rate <= 1) v.secs++;           // counts only while it really plays, screen open, normal speed
+  const ct = watchPos(w), dt = (ct != null && w.lastT != null) ? ct - w.lastT : null; w.lastT = ct;
+  if (playing && !document.hidden && rate <= 1 && (dt === null || (dt > 0.3 && dt < 1.6))) v.secs++;           // counts only while it really plays, screen open, normal speed
   const T = $('#xwTime'), B = $('#xwBar'), X = $('#xwStat');
   if (T) { T.textContent = fmtT(v.secs) + ' / ' + fmtT(v.need); B.style.width = Math.min(100, v.secs / v.need * 100) + '%'; X.textContent = document.hidden ? 'Keep this screen open' : rate > 1 ? 'Set speed to normal' : playing ? 'Watching...' : 'Press play'; }
   if (v.secs >= v.need && !w.done) { w.done = true; finishXWatch(); }
@@ -1229,6 +1236,76 @@ views.leaderboard = function () {
     ${rows.length ? podium : emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!')}${rest ? `<div class="divide-y divide-slate-100 ${CARD}">${rest}</div>` : ''}`;
 };
 
+
+// ---- v6 helpers: contacts page, leaderboard tabs, intro pages, login help, OCR check, watch position
+S.contacts = S.contacts || {};
+views.contact = () => {
+  const list = Object.entries(S.contacts || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.value).sort((a, b) => (a.order || 0) - (b.order || 0));
+  const rows = list.length ? list : [{ id: 'mail', label: 'Email', type: 'email', value: cfg('support_email') }];
+  const href = c => c.type === 'email' ? 'mailto:' + c.value : c.value;
+  const icon = c => ({ email: 'fa-solid fa-envelope', whatsapp: 'fa-brands fa-whatsapp', telegram: 'fa-brands fa-telegram', instagram: 'fa-brands fa-instagram' }[c.type] || 'fa-solid fa-link');
+  return `${backBtn('#/profile', 'Contact Us')}<p class="mb-4 text-sm text-slate-500">Write to us about payments, rewards or your account. Please include your registered mobile number.</p>
+    <div class="space-y-3">${rows.map(c => `<a href="${esc(href(c))}" target="_blank" rel="noopener noreferrer" class="rip ${CARD} flex items-center gap-3 p-4"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><i class="${icon(c)}"></i></span><span class="min-w-0 flex-1"><span class="block text-sm font-bold">${esc(c.label)}</span><span class="block truncate text-xs text-slate-500">${esc(c.value)}</span></span><i class="fa-solid fa-chevron-right text-xs text-slate-400"></i></a>`).join('')}</div>
+    <p class="mt-4 text-center text-xs text-slate-400">We usually reply within 48 hours.</p>`;
+};
+// Leaderboard page has two tabs: Leaderboard and Contests
+const _lbBase = views.leaderboard;
+views.leaderboard = function (arg) {
+  const tabs = `<div class="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/60 p-1 backdrop-blur"><a href="#/leaderboard" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'text-slate-500' : 'btn-primary text-white'}">Leaderboard</a><a href="#/leaderboard/contests" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'btn-primary text-white' : 'text-slate-500'}">Contests</a></div>`;
+  if (arg === 'contests') return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">Contests with cash prizes</p>${tabs}${contestsPage().replace(backBtn('#/extra', 'Contests'), '')}`;
+  return _lbBase().replace('<h1 class="text-xl font-bold">Leaderboard</h1>', '<h1 class="text-xl font-bold">Leaderboard</h1>' + tabs);
+};
+// Intro pages (shown once, before login)
+const INTRO = [
+  ['fa-solid fa-hand-holding-dollar', 'Earn by completing tasks', 'Watch videos, install apps, take surveys and finish simple tasks. Every approved task adds coins to your wallet.'],
+  ['fa-solid fa-wallet', 'Redeem your coins', 'Withdraw to UPI, or redeem Amazon and Google Play codes. Minimum amounts and a small UPI fee apply.'],
+  ['fa-solid fa-user-group', 'Invite, compete and win', 'Refer friends for bonus coins, climb the leaderboard and join contests for extra cash prizes.']
+];
+let introIdx = 0;
+function renderIntro(m) {
+  const [ic, t, d] = INTRO[introIdx], last = introIdx === INTRO.length - 1;
+  m.innerHTML = `<div class="flex w-full max-w-md flex-1 flex-col items-center justify-center text-center">
+      <span class="mb-8 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white/15 text-5xl shadow-2xl backdrop-blur"><i class="${ic}"></i></span>
+      <h2 class="text-2xl font-extrabold">${esc(t)}</h2><p class="mt-3 text-sm leading-relaxed text-white/85">${esc(d)}</p></div>
+    <div class="w-full max-w-md">
+      <div class="mb-6 flex items-center justify-center gap-2">${INTRO.map((_, i) => `<span class="h-2 rounded-full transition-all duration-500 ${i === introIdx ? 'w-8 bg-white' : 'w-2 bg-white/40'}"></span>`).join('')}</div>
+      <div class="flex items-center justify-between gap-3">${last ? '<span></span>' : '<button data-i="skip" class="rounded-xl px-4 py-3 text-sm font-semibold text-white/80">Skip</button>'}
+        <button data-i="next" class="rounded-xl bg-white px-8 py-3.5 text-sm font-bold text-indigo-700 shadow-xl active:scale-95">${last ? 'Get started' : 'Next'}</button></div></div>`;
+}
+function maybeIntro() {
+  if (S.user || lsGet('te_intro') === '1' || document.getElementById('introBox')) return;
+  const m = document.createElement('div');
+  m.id = 'introBox';
+  m.className = 'fixed inset-0 z-[95] flex flex-col items-center justify-between bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-6 text-white';
+  m.style.paddingTop = 'calc(28px + var(--sat))'; m.style.paddingBottom = 'calc(24px + var(--sab))';
+  const finish = () => { lsSet('te_intro', '1'); m.remove(); };
+  m.addEventListener('click', e => {
+    const b = e.target.closest('[data-i]'); if (!b) return;
+    if (b.dataset.i === 'skip') return finish();
+    if (introIdx >= INTRO.length - 1) return finish();
+    introIdx++; renderIntro(m);
+  });
+  document.body.appendChild(m); renderIntro(m);
+}
+// Login screen: a 'forgot password' line that opens the support email
+const _renderAuthBase = renderAuth;
+renderAuth = function (force) {
+  _renderAuthBase(force);
+  const box = $('#auth');
+  if (box && S.authMode === 'login') box.insertAdjacentHTML('beforeend', `<p class="px-6 pb-8 text-center text-xs text-slate-500">Password bhul gaye? <a href="mailto:${esc(cfg('support_email'))}?subject=${ENC('Password help - ' + cfg('site_name'))}&body=${ENC('Mobile number: ')}" class="font-bold text-indigo-600">Support se contact karein</a></p>`);
+  maybeIntro();
+};
+// Screenshot check: the image must contain the keywords the admin set for the task
+async function ocrCheck(file, words) {
+  if (!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+  const { data } = await window.Tesseract.recognize(file, 'eng');
+  const text = String(data.text || '').toLowerCase();
+  const hits = words.filter(w => text.includes(String(w).toLowerCase())).length;
+  return hits >= (words.length >= 2 ? 2 : 1);
+}
+// Playback position (YouTube or file video) so that skipping ahead is not counted as watching
+function watchPos(w) { try { if (w.player && w.player.getCurrentTime) return w.player.getCurrentTime(); if (w.video) return w.video.currentTime; } catch (_) {} return null; }
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
   if (a === 'music') { lsSet('te_music', musicOn() ? 'off' : 'on'); bgmApply(); render(true); return true; }
@@ -1293,7 +1370,7 @@ async function boot(u) {
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
   listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
-  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard');
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts');
   unsubs.push(onValue(ref(db, `extraUse/${uid}/${todayStr()}`), x => { S.xu = x.val() || {}; render(); }, () => {}));
   unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
