@@ -91,20 +91,78 @@
   .live-dot{display:inline-block;width:8px;height:8px;border-radius:9999px;background:#22c55e;animation:livepulse 1.6s ease-out infinite}
   @keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
   .live-pill{display:inline-flex;align-items:center;gap:6px;border-radius:9999px;padding:3px 10px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#4ade80;background:rgba(34,197,94,.14)}
-  /* phones: keep the look, but drop the expensive repaint effects (box-shadow / background-position loops, big blur) */
-  html.lite .glass,html.lite .glass-strong,html.lite .glass-bar,html.lite .glass-chip,html.lite .glass-input{-webkit-backdrop-filter:blur(10px) saturate(130%);backdrop-filter:blur(10px) saturate(130%)}
-  html.lite body{background-attachment:scroll}
-  html.lite .hero::after,html.lite .btn-start::after,html.lite .hot::after,html.lite .hot::before,html.lite .ripple{display:none}
-  html.lite .btn-start{animation:none;background:linear-gradient(110deg,#6366f1,#8b5cf6,#d946ef)}
-  html.lite .btn-start i{animation:nudge 1.2s ease-in-out infinite}
-  html.lite .hot{animation:hotshake 4.5s ease-in-out infinite;background:linear-gradient(110deg,#f97316,#ef4444,#ec4899)}
-  html.lite .hot-tag{animation:none}
-  html.lite .nav-orb{animation:none}
-  html.lite .nav-orb i{animation:orbwob 3s ease-in-out infinite}
-  html.lite .skel{animation:none;background:rgba(255,255,255,.75)}
-  html.lite .live-card,html.lite .live-dot{animation:none}
-  html.lite .live-card{background:linear-gradient(120deg,#22d3ee,#6366f1)}
-  html.lite #view.enter>*{animation-duration:.4s}
+
+  /* ===== premium motion: only transform + opacity animate (GPU), so it stays smooth ===== */
+  @keyframes sheen{0%{transform:translate3d(-130%,0,0)}55%,100%{transform:translate3d(280%,0,0)}}
+  @keyframes ringPulse{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.16);opacity:0}}
+  @keyframes dotPing{0%{transform:scale(1);opacity:.85}100%{transform:scale(3.4);opacity:0}}
+  @keyframes spinCenter{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+  @keyframes orbSpin{0%,100%{transform:rotate(-10deg) scale(1)}50%{transform:rotate(10deg) scale(1.14)}}
+  .btn-start{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(110deg,#6366f1,#8b5cf6 55%,#a855f7);background-size:auto;animation:none;box-shadow:0 10px 24px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.5)}
+  .btn-start::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;z-index:-1;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);transform:translate3d(-130%,0,0);animation:sheen 2.8s ease-in-out infinite;will-change:transform;pointer-events:none}
+  .btn-start::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;border:2px solid rgba(255,255,255,.6);transform:none;background:none;animation:ringPulse 2.2s ease-out infinite;will-change:transform,opacity;pointer-events:none}
+  .hot{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(110deg,#f97316,#ef4444 55%,#ec4899);background-size:auto;animation:hotshake 4.5s ease-in-out infinite;box-shadow:0 12px 30px rgba(239,68,68,.45),inset 0 1px 0 rgba(255,255,255,.6)}
+  .hot::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;z-index:-1;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translate3d(-130%,0,0);animation:sheen 2.4s ease-in-out infinite;will-change:transform;pointer-events:none}
+  .hot::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;border:2px solid rgba(255,255,255,.55);background:none;transform:none;animation:ringPulse 2.2s ease-out infinite;will-change:transform,opacity;pointer-events:none}
+  .hot-tag{animation:none}
+  .hero::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.24),transparent);transform:translate3d(-130%,0,0) skewX(-20deg);animation:sheen 5.5s ease-in-out infinite;will-change:transform;pointer-events:none}
+  .nav-orb{position:relative;animation:none;box-shadow:0 12px 28px rgba(236,72,153,.45),inset 0 1px 0 rgba(255,255,255,.55)}
+  .nav-orb::after{content:"";position:absolute;inset:-2px;border-radius:9999px;border:2px solid rgba(236,72,153,.55);animation:ringPulse 2.2s ease-out infinite;will-change:transform,opacity;pointer-events:none}
+  .nav-orb i{animation:orbSpin 3s ease-in-out infinite}
+  .live-card{position:relative;isolation:isolate;overflow:hidden;background:none;padding:2px;border-radius:22px;animation:none}
+  .live-card::before{content:"";position:absolute;left:50%;top:50%;width:230%;aspect-ratio:1;z-index:-2;background:conic-gradient(from 0deg,#22d3ee,#6366f1,#f472b6,#22d3ee);transform:translate(-50%,-50%);animation:spinCenter 4.5s linear infinite;will-change:transform}
+  .live-dot{position:relative;animation:none;box-shadow:none}
+  .live-dot::after{content:"";position:absolute;inset:0;border-radius:inherit;background:#22c55e;animation:dotPing 1.6s ease-out infinite;will-change:transform,opacity}
+  .skel{animation:skel 1.4s linear infinite}
+  html.lite .glass,html.lite .glass-strong,html.lite .glass-bar,html.lite .glass-chip{-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%)}
+  /* ===== v5: podium leaderboard, king crown, contest cards ===== */
+  .pod-col{animation:rise .8s cubic-bezier(.22,1,.36,1) both}
+  .pod-col.p2{animation-delay:.12s}.pod-col.p3{animation-delay:.24s}
+  .pod-block{transform-origin:50% 100%;animation:podGrow .9s cubic-bezier(.22,1,.36,1) both}
+  .pod-col.p1 .pod-block{animation-delay:.1s}
+  @keyframes podGrow{from{transform:scaleY(.25)}to{transform:none}}
+  .king-crown{color:#fbbf24;filter:drop-shadow(0 4px 10px rgba(251,191,36,.6));animation:kingBob 2.4s ease-in-out infinite;display:inline-block}
+  @keyframes kingBob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-7px) rotate(6deg)}}
+  .king-ring{position:relative;isolation:isolate}
+  .king-ring::before{content:"";position:absolute;inset:-7px;border-radius:9999px;background:conic-gradient(#fde68a,#f59e0b,#fff7ed,#fbbf24,#fde68a);z-index:-1;animation:spinRing 3s linear infinite}
+  .king-ring::after{content:"";position:absolute;inset:-16px;border-radius:9999px;background:radial-gradient(circle,rgba(251,191,36,.6),transparent 65%);z-index:-2;animation:kingGlow 2.2s ease-in-out infinite}
+  @keyframes kingGlow{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1.08)}}
+  .rank-row{animation:rise .6s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i,0)*70ms + 250ms)}
+  @media (prefers-reduced-motion:reduce){.btn-start::before,.btn-start::after,.hot::before,.hot::after,.nav-orb::after,.live-card::before,.live-dot::after,.hero::after{animation:none!important}}
+
+  /* ===== v4: rich animations that stay smooth on phones: only transform & opacity run in loops (GPU), no box-shadow / background-position loops ===== */
+  @keyframes sweepA{0%{transform:translateX(-120%)}60%,100%{transform:translateX(120%)}}
+  @keyframes sweepB{0%{transform:translateX(-160%) skewX(-20deg)}60%,100%{transform:translateX(320%) skewX(-20deg)}}
+  @keyframes shimmerX{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  @keyframes spinRing{to{transform:rotate(360deg)}}
+  @keyframes ping{0%{transform:scale(.4);opacity:.9}100%{transform:scale(2.2);opacity:0}}
+  @keyframes ping2{0%{transform:scale(.92);opacity:.85}100%{transform:scale(1.4);opacity:0}}
+  @keyframes haloOut{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.07);opacity:0}}
+  @keyframes glowOp{from{opacity:.3}to{opacity:1}}
+  @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .hero{animation:floatY 6s ease-in-out infinite;will-change:transform}
+  .hero::after{content:"";position:absolute;top:0;left:0;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);transform:translateX(-160%) skewX(-20deg);animation:sweepB 6s ease-in-out infinite;pointer-events:none}
+  .btn-start{background:linear-gradient(110deg,#6366f1,#8b5cf6,#d946ef);box-shadow:0 10px 24px rgba(99,102,241,.38),inset 0 1px 0 rgba(255,255,255,.5);animation:none;will-change:transform}
+  .btn-start::before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.5),transparent 70%);transform:translateX(-120%);animation:sweepA 2.8s ease-in-out infinite;pointer-events:none}
+  .btn-start::after{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid rgba(167,139,250,.75);animation:haloOut 2s ease-out infinite;pointer-events:none}
+  .btn-start i{animation:nudge 1.2s ease-in-out infinite}
+  .hot{background:linear-gradient(110deg,#f97316,#ef4444,#ec4899);animation:hotshake 4.5s ease-in-out infinite;will-change:transform}
+  .hot::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 15% 130%,rgba(255,226,120,.7),transparent 55%);animation:glowOp 1.3s ease-in-out infinite alternate;pointer-events:none}
+  .hot::after{content:"";position:absolute;top:0;left:0;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);transform:translateX(-160%) skewX(-20deg);animation:sweepB 2.6s ease-in-out infinite;pointer-events:none}
+  .live-card{position:relative;isolation:isolate;overflow:hidden;border-radius:22px;padding:2px;background:none;animation:none}
+  .live-card::before{content:"";position:absolute;left:-50%;top:-50%;width:200%;height:200%;background:conic-gradient(from 0deg,#22d3ee,#6366f1,#f472b6,#22d3ee);animation:spinRing 4s linear infinite;z-index:-1}
+  .live-dot{position:relative;display:inline-block;animation:none}
+  .live-dot::after{content:"";position:absolute;inset:-5px;border-radius:9999px;background:rgba(34,197,94,.55);animation:ping 1.6s cubic-bezier(0,0,.2,1) infinite}
+  .nav-orb{position:relative;animation:none;box-shadow:0 12px 28px rgba(236,72,153,.45),inset 0 1px 0 rgba(255,255,255,.55)}
+  .nav-orb::after{content:"";position:absolute;inset:-7px;border-radius:9999px;border:2px solid rgba(236,72,153,.55);animation:ping2 2.2s cubic-bezier(0,0,.2,1) infinite;pointer-events:none}
+  .skel{position:relative;overflow:hidden;animation:none;background:rgba(255,255,255,.6)}
+  .skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent);transform:translateX(-100%);animation:shimmerX 1.4s linear infinite}
+  .stagger>*{contain:layout paint}
+  .premium-card{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(255,251,235,.96),rgba(255,255,255,.92))!important;border:1px solid rgba(245,158,11,.6)!important;box-shadow:0 12px 28px rgba(245,158,11,.2)!important}
+  .premium-card::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.8),transparent 65%);transform:translateX(-120%);animation:shimmerX 3.2s ease-in-out infinite;pointer-events:none}
+  .premium-card .crown{animation:floatY 2.4s ease-in-out infinite}
+  .flame{will-change:transform}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -353,7 +411,7 @@ const views = {
   home() {
     const p = S.profile, first = (p.name || '').trim().split(' ')[0] || 'there';
     const chips = { all: 'All', watch: 'Watch & Earn', install: 'Install & Earn', survey: 'Survey', channel: 'Join Channel', review: 'Rate & Review', daily: 'Daily' };
-    const list = activeTasks().filter(t => S.cat === 'all' || t.type === S.cat);
+    const list = activeTasks().filter(t => S.cat === 'all' || t.type === S.cat).filter(t => t.type === 'daily' || taskState(t) !== 'done').sort((a, b) => (b.premium ? 1 : 0) - (a.premium ? 1 : 0));
     const card = (t, i) => {
       const [label, icon] = TYPES[t.type] || TYPES.watch, st = taskState(t);
       const pill = (cls, ic, tx) => `<span class="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${cls}"><i class="fa-solid ${ic}"></i>${tx}</span>`;
@@ -363,10 +421,10 @@ const views = {
       const rj = S.ut[t.id] && S.ut[t.id].status === 'rejected';
       const tag = rj ? ' &middot; <span class="font-semibold text-red-500">Rejected</span>' : isAutoWatch(t) ? ' &middot; Auto verified' : needsProof(t) ? ' &middot; Proof' : '';
       const tagG = (t.tutorialVideo || t.hasVoice) ? ' &middot; Guide' : '';
-      return `<div style="--i:${i}" class="${CARD} flex items-center gap-3 p-2.5"><a href="#/task/${t.id}" class="relative block h-[68px] w-[100px] shrink-0 overflow-hidden rounded-xl bg-indigo-50">
+      return `<div style="--i:${i}" class="${CARD} ${t.premium ? 'premium-card' : ''} flex items-center gap-3 p-2.5"><a href="#/task/${t.id}" class="relative block h-[68px] w-[100px] shrink-0 overflow-hidden rounded-xl bg-indigo-50">
         ${t.cover ? `<img src="${t.cover}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-2xl"></i></div>`}
         <span class="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-white/80 text-[10px] text-indigo-600 backdrop-blur"><i class="fa-solid ${icon}"></i></span></a>
-        <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">${esc(t.title)}</p><p class="truncate text-[11px] text-slate-500">${esc(label)}${tag}${tagG}</p>
+        <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">${esc(t.title)}</p><p class="truncate text-[11px] text-slate-500">${t.premium ? '<span class="crown font-extrabold text-amber-600"><i class="fa-solid fa-crown mr-1"></i>Premium</span> &middot; ' : ''}${esc(label)}${tag}${tagG}</p>
         <div class="mt-1.5 flex items-center justify-between gap-2"><span class="inline-flex items-center gap-1 text-sm font-extrabold text-indigo-600"><i class="fa-solid fa-coins text-[11px]"></i>+${esc(money(taskReward(t)))}</span>${cta}</div></div></div>`;
     };
     return `<div class="mb-5 flex items-center justify-between"><div><h1 class="text-xl font-bold tracking-tight">Hello, ${esc(first)}</h1><p class="text-sm text-slate-500">Complete tasks and earn rewards</p></div>
@@ -569,7 +627,6 @@ const openExt = u => { const w = window.open(u, '_blank', 'noopener'); if (!w) l
 // ---- APK / WebView: when the app draws under the status bar, push the header and nav inside the safe area
 function detectWV() { const edge = /Android/i.test(navigator.userAgent) && (screen.height - window.innerHeight) < 20 && !document.fullscreenElement; document.documentElement.classList.toggle('wv', edge || /[?&]safe=1/.test(location.search)); }
 detectWV(); window.addEventListener('resize', detectWV);
-document.documentElement.classList.toggle('lite', /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
 
 // ---- button ripple
 document.addEventListener('pointerdown', e => { const b = e.target.closest('.rip,.btn-start'); if (!b) return; const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), s = document.createElement('span'); s.className = 'ripple'; s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`; b.appendChild(s); setTimeout(() => s.remove(), 700); }, { passive: true });
@@ -599,7 +656,7 @@ function afterRender(v, arg, enter) {
 }
 
 // ---- leaderboard: every user gets a row; own total is synced from the wallet history
-const lbSkip = r => /refund|welcome bonus|referral bonus|wallet top-up/i.test(r || '');
+const lbSkip = r => /refund|welcome bonus|referral bonus|wallet top-up|admin adjustment/i.test(r || '');
 async function syncLb() {
   S._lbSynced = true; const uid = S.user.uid;
   try {
@@ -949,12 +1006,13 @@ function extraAd(k) {
 
 // ---------- pages ----------
 views.extra = function (arg) {
+  if (arg === 'contests') return contestsPage();
   if (arg && XF[arg]) return xPage(arg);
   const card = k => { const f = XF[k], live = xLive(k), left = xLeft(k);
     const st = !live ? '<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Coming soon</span>'
       : left > 0 ? `<span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">${left} left today</span>` : '<span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-700">Done today</span>';
     return `<button data-act="xopen" data-k="${k}" class="rip glass relative flex flex-col items-start gap-3 rounded-2xl p-4 text-left ${live ? '' : 'opacity-80'}"><span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${f.c} text-xl text-white shadow-lg"><i class="fa-solid ${f.icon}"></i></span><span><span class="block text-sm font-extrabold">${f.title}</span><span class="block text-xs text-slate-500">${f.sub}</span></span>${st}</button>`; };
-  return `<h1 class="text-xl font-bold"><i class="fa-solid fa-gem mr-1.5 text-indigo-600"></i>Extra</h1><p class="mb-5 text-sm text-slate-500">Bonus ways to earn coins every day</p><div class="grid grid-cols-2 gap-3">${Object.keys(XF).map(card).join('')}</div>`;
+  return `<h1 class="text-xl font-bold"><i class="fa-solid fa-gem mr-1.5 text-indigo-600"></i>Extra</h1><p class="mb-5 text-sm text-slate-500">Bonus ways to earn coins every day</p><div class="grid grid-cols-2 gap-3">${Object.keys(XF).map(card).join('')}${contestCard()}</div>`;
 };
 function xPage(k) {
   const f = XF[k], left = xLeft(k), head = backBtn('#/extra', f.title);
@@ -1125,6 +1183,52 @@ function musicRow() {
   return `<button data-act="music" class="mb-5 flex w-full items-center justify-between ${CARD} p-4 text-left"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl ${on ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}"><i class="fa-solid ${on ? 'fa-music' : 'fa-volume-xmark'}"></i></span><span class="text-sm font-semibold">Background music</span></span><span class="rounded-full px-3 py-1 text-xs font-bold ${on ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${on ? 'On' : 'Off'}</span></button>`;
 }
 
+
+// ---- Contests (created by the admin): referral contest and task contest with cash prizes
+S.contests = S.contests || {}; S.cboard = S.cboard || {};
+function contestState(c) { const n = Date.now(); if (c.active === false) return 'off'; if (c.paidAt) return 'paid'; if (n < c.startsAt) return 'upcoming'; if (n <= c.endsAt) return 'running'; return 'ended'; }
+function contestTimeLeft(c) { const st = contestState(c), ms = (st === 'upcoming' ? c.startsAt : c.endsAt) - Date.now(); if (ms <= 0) return 'Ended'; const d = Math.floor(ms / 86400000), h = Math.floor(ms % 86400000 / 3600000), m = Math.floor(ms % 3600000 / 60000); return (st === 'upcoming' ? 'Starts in ' : 'Ends in ') + (d ? d + 'd ' : '') + h + 'h ' + m + 'm'; }
+function contestCard() { const n = Object.values(S.contests || {}).filter(c => ['running', 'upcoming'].includes(contestState(c))).length;
+  return `<a href="#/extra/contests" class="rip glass col-span-2 flex items-center gap-3 rounded-2xl p-4"><span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 text-xl text-white shadow-lg"><i class="fa-solid fa-medal"></i></span><span class="min-w-0 flex-1"><span class="block text-sm font-extrabold">Contests</span><span class="block text-xs text-slate-500">Referral and task contests with cash prizes</span></span><span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-700">${n ? n + ' running' : 'Coming soon'}</span></a>`; }
+function contestsPage() {
+  const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+  const list = Object.entries(S.contests || {}).map(([id, c]) => ({ ...c, id })).filter(c => contestState(c) !== 'off').sort((a, b) => b.startsAt - a.startsAt);
+  const cards = list.map(c => {
+    const unit = c.type === 'referral' ? 'friends' : 'tasks', st = contestState(c);
+    const board = Object.entries((S.cboard || {})[c.id] || {}).map(([uid, v]) => ({ uid, ...v })).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+    const my = board.findIndex(x => x.uid === S.user.uid), prizes = c.prizes || [];
+    const rows = board.slice(0, 5).map((x, i) => `<div class="flex items-center justify-between gap-2 p-3 ${x.uid === S.user.uid ? 'bg-indigo-50/70' : ''}"><span class="flex items-center gap-2 text-sm"><b class="w-6 text-center ${i === 0 ? 'text-amber-500' : 'text-slate-500'}">${i + 1}</b>${x.uid === S.user.uid ? 'You' : esc(mask(x.name))}</span><span class="text-sm font-bold">${x.score} ${unit}</span></div>`).join('');
+    const mine = my >= 0 ? `<p class="mt-3 text-sm font-semibold ${my < prizes.length ? 'text-emerald-600' : 'text-slate-600'}">Your rank: #${my + 1} (${board[my].score} ${unit})${my < prizes.length ? ' &middot; you are in the prize zone!' : ''}</p>` : '<p class="mt-3 text-sm font-semibold text-slate-500">You are not on the board yet.</p>';
+    return `<div class="${CARD} mb-4 p-4"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-base font-extrabold">${esc(c.name)}</p><p class="text-xs text-slate-500">${c.type === 'referral' ? 'Invite friends who join and complete tasks' : 'Complete the most tasks in the contest period'}</p></div>
+      <span class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${st === 'running' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}">${st === 'running' ? 'Live' : st}</span></div>
+      <p class="mt-2 text-xs font-semibold text-indigo-600"><i class="fa-solid fa-clock mr-1"></i>${esc(contestTimeLeft(c))}</p>
+      <div class="mt-3 flex flex-wrap gap-2">${prizes.map((p, i) => `<span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">#${i + 1} ${esc(money(p))}</span>`).join('')}</div>
+      <div class="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">${rows || '<p class="p-4 text-center text-sm text-slate-500">No scores yet. Be the first!</p>'}</div>${mine}</div>`;
+  }).join('');
+  return backBtn('#/extra', 'Contests') + (cards || emptyBox('fa-medal', 'No contests right now', 'New contests are announced here.'));
+}
+// ---- Leaderboard with a podium: the #1 user is the King (crown + animated ring)
+views.leaderboard = function () {
+  const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+  const ini = n => (String(n || '?').trim()[0] || '?').toUpperCase();
+  const rows = Object.entries(S.lb || {}).map(([id, v]) => ({ id, name: v.name, earned: v.earned || 0 })).filter(r => r.name).sort((a, b) => b.earned - a.earned).slice(0, 50);
+  const me = rows.findIndex(r => r.id === S.user.uid), mine = me >= 0 ? rows[me] : null;
+  const seat = (r, pos) => {
+    if (!r) return '<div class="flex-1"></div>';
+    const king = pos === 1, size = king ? 'h-20 w-20 text-2xl' : 'h-14 w-14 text-base', h = king ? 'h-32' : pos === 2 ? 'h-24' : 'h-20';
+    const grad = king ? 'from-amber-300 via-yellow-400 to-orange-500' : pos === 2 ? 'from-slate-200 to-slate-400' : 'from-orange-300 to-amber-700';
+    return `<div class="pod-col p${pos} flex flex-1 flex-col items-center">${king ? '<span class="king-crown mb-1 text-3xl"><i class="fa-solid fa-crown"></i></span>' : ''}
+      <span class="${king ? 'king-ring' : ''} relative flex ${size} items-center justify-center rounded-full bg-gradient-to-br ${grad} font-extrabold text-white shadow-lg">${esc(ini(r.name))}</span>
+      <p class="mt-2 max-w-[96px] truncate text-xs font-extrabold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-[11px] font-semibold text-indigo-600">${esc(money(r.earned))}</p>
+      <div class="pod-block mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${grad} pt-2 text-lg font-extrabold text-white ${h}">${pos}</div></div>`;
+  };
+  const podium = `<div class="relative mb-6 overflow-hidden rounded-3xl px-3 pt-4 ${CARD}"><p class="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[0.25em] text-amber-600">${rows[0] ? 'King of the leaderboard' : ''}</p><div class="flex items-end justify-center gap-3">${seat(rows[1], 2)}${seat(rows[0], 1)}${seat(rows[2], 3)}</div></div>`;
+  const rest = rows.slice(3).map((r, i) => `<div class="rank-row flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/70' : ''}" style="--i:${i}"><span class="w-7 text-center text-sm font-extrabold text-slate-500">${i + 4}</span><span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">${esc(ini(r.name))}</span><p class="min-w-0 flex-1 truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('');
+  return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">Top earners of all time</p>
+    <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p><p class="relative mt-1 text-3xl font-bold">${mine ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${mine ? 'Total earned ' + esc(money(mine.earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
+    ${rows.length ? podium : emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!')}${rest ? `<div class="divide-y divide-slate-100 ${CARD}">${rest}</div>` : ''}`;
+};
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
   if (a === 'music') { lsSet('te_music', musicOn() ? 'off' : 'on'); bgmApply(); render(true); return true; }
@@ -1189,7 +1293,7 @@ async function boot(u) {
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
   listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
-  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm');
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard');
   unsubs.push(onValue(ref(db, `extraUse/${uid}/${todayStr()}`), x => { S.xu = x.val() || {}; render(); }, () => {}));
   unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
