@@ -1428,6 +1428,34 @@ extClick = function (b, a) {
   return _extClickBase(b, a);
 };
 
+
+// ---- v8: floating music button on every logged-in screen (one tap starts the music; browsers need a tap)
+function musicFab() {
+  let f = document.getElementById('musicFab');
+  if (!f) {
+    f = document.createElement('button');
+    f.id = 'musicFab'; f.setAttribute('aria-label', 'Background music');
+    f.className = 'flex items-center justify-center rounded-full text-white shadow-xl active:scale-95';
+    f.style.cssText += ';position:fixed;right:16px;bottom:calc(96px + var(--sab));width:48px;height:48px;z-index:40;';
+    f.style.background = 'linear-gradient(135deg,#6366f1,#ec4899)';
+    // remember the state before the tap: the global pointerdown handler may start the music first
+    f.addEventListener('pointerdown', () => { f.dataset.wasPaused = BGM.paused ? '1' : '0'; });
+    f.addEventListener('click', () => { lsSet('te_music', f.dataset.wasPaused === '1' ? 'on' : 'off'); bgmApply(); setTimeout(updateFab, 80); });
+    document.body.appendChild(f);
+  }
+  return f;
+}
+function updateFab() {
+  const f = document.getElementById('musicFab');
+  const show = !!(S.user && S.bgm && S.bgm.enabled && bgmList().length);
+  if (!show) { if (f) f.style.display = 'none'; return; }
+  const btn = musicFab(), on = !BGM.paused;
+  btn.style.display = '';
+  btn.innerHTML = `<i class="fa-solid ${on ? 'fa-music' : 'fa-volume-xmark'}"></i>`;
+  btn.title = on ? 'Music on (tap to turn off)' : 'Music off (tap to turn on)';
+}
+setInterval(updateFab, 1500);
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
   if (a === 'music') { lsSet('te_music', musicOn() ? 'off' : 'on'); bgmApply(); render(true); return true; }
