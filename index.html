@@ -163,6 +163,9 @@
   .premium-card .crown{animation:floatY 2.4s ease-in-out infinite}
   .flame{will-change:transform}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}
+  /* native (Android app): leave room for the Unity banner above the bottom menu */
+  html.native-ads .bottom-nav{bottom:calc(58px + var(--sab))}
+  html.native-ads #musicFab{bottom:calc(150px + var(--sab))}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -686,6 +689,7 @@ function adContent(p, h, src) {
 }
 const adBox = html => `<div class="glass overflow-hidden rounded-2xl"><p class="px-3 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Ad</p>${html}</div>`;
 function updateAds() {
+  if (hasNative()) { nativeBanner(); return; }
   const a = S.ads || {}, host = $('#adSticky'); if (!host) return;
   const html = a.banner_enabled && a.banner_position !== 'inline' ? adContent('banner', a.banner_height || 60) : '';
   const sig = html ? JSON.stringify([a.banner_type, a.banner_code, a.banner_image, a.banner_link, a.banner_height]) : '';
@@ -707,6 +711,7 @@ function modal(html) {
 }
 function closeModal() { clearInterval(S._adT); const m = $('#adModal'); if (m) m.classList.add('hidden'); if (S._xRes) { const r = S._xRes; S._xRes = null; r(false); } }
 function openRewarded() {
+  if (hasNative()) return nativeRewarded();
   const a = S.ads || {}; if ((S.advToday || 0) >= (a.rewarded_limit || 10)) return flash('error', 'Daily ad limit reached. Come back tomorrow.');
   let left = a.rewarded_seconds || 15; const reward = a.rewarded_reward || 100;
   const m = modal(`<div class="modal-pop w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl" style="padding-bottom:calc(20px + var(--sab))">
@@ -727,6 +732,11 @@ async function claimAd() {
   });
 }
 function onTaskDone() {
+  if (hasNative()) {
+    const a0 = S.ads || {};
+    if (a0.inter_enabled) { S._done++; if (S._done % (a0.inter_every || 3) === 0) { try { TEAndroid.showInterstitial(NATIVE_ADS.interstitial); } catch (_) {} } }
+    return;
+  }
   const a = S.ads || {}; if (!a.inter_enabled || !adContent('inter', 250)) return;
   S._done++; if (S._done % (a.inter_every || 3)) return;
   let left = a.inter_seconds || 5;
@@ -1309,6 +1319,38 @@ async function ocrCheck(file, words) {
 // Playback position (YouTube or file video) so that skipping ahead is not counted as watching
 function watchPos(w) { try { if (w.player && w.player.getCurrentTime) return w.player.getCurrentTime(); if (w.video) return w.video.currentTime; } catch (_) {} return null; }
 
+
+
+// ================= v8: Unity Ads through the Android wrapper (window.TEAndroid) =================
+// Unity Ads only runs inside the Android app (WebView wrapper). In a normal browser the web ads are used.
+const NATIVE_ADS = { banner: 'BP_Banner_Android', interstitial: 'BP_Interstitial_Android', rewarded: 'BP_Rewarded_Android' };
+const hasNative = () => !!(window.TEAndroid && typeof window.TEAndroid.showRewarded === 'function');
+function nativeBanner() {
+  const a = S.ads || {}, want = !!(S.user && a.banner_enabled);
+  document.documentElement.classList.toggle('native-ads', want);
+  if (want === S._nbShown) return;
+  S._nbShown = want;
+  try { want ? TEAndroid.showBanner(NATIVE_ADS.banner) : TEAndroid.hideBanner(); } catch (_) {}
+}
+function nativeRewarded() {
+  const a = S.ads || {};
+  if (!a.rewarded_enabled) return flash('error', 'Watch Ad is not available right now.');
+  if ((S.advToday || 0) >= (a.rewarded_limit || 10)) return flash('error', 'Daily ad limit reached. Come back tomorrow.');
+  try { TEAndroid.showRewarded(NATIVE_ADS.rewarded); } catch (_) { flash('error', 'Ad is not ready yet. Please try again.'); }
+}
+// Called by the Android app when a rewarded ad was watched to the end (ok = true)
+window.onRewardGranted = (placementId, ok) => {
+  if (placementId !== NATIVE_ADS.rewarded || !ok || !S.user) return;
+  busy(async () => {
+    const a = S.ads || {}, uid = S.user.uid, lim = a.rewarded_limit || 10, reward = a.rewarded_reward || 100;
+    const r = await runTransaction(ref(db, `adViews/${uid}/${todayStr()}`), c => (c || 0) < lim ? (c || 0) + 1 : undefined);
+    if (!r.committed) return flash('error', 'Daily ad limit reached. Come back tomorrow.');
+    await credit(uid, reward, 'Rewarded ad', null);
+    flash('success', 'Ad reward added: ' + money(reward));
+  });
+};
+// Called by the Android app when the user closes a rewarded ad without finishing it (no reward)
+window.onAdClosed = () => {};
 
 // ================= v7 =================
 S.bgmTracks = S.bgmTracks || {}; S.cjoin = S.cjoin || {}; S.bgmIdx = 0; S._bgmFiles = {};
