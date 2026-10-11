@@ -1340,6 +1340,8 @@ function nativeRewarded() {
 }
 // Called by the Android app when a rewarded ad was watched to the end (ok = true)
 window.onRewardGranted = (placementId, ok) => {
+  adLog((ok ? 'REWARD ' : 'no reward ') + placementId);
+  if (S._adTest) { S._adTest = false; return; }          // Ad Test page: log only, never credit
   if (placementId !== NATIVE_ADS.rewarded || !ok || !S.user) return;
   busy(async () => {
     const a = S.ads || {}, uid = S.user.uid, lim = a.rewarded_limit || 10, reward = a.rewarded_reward || 100;
@@ -1350,7 +1352,38 @@ window.onRewardGranted = (placementId, ok) => {
   });
 };
 // Called by the Android app when the user closes a rewarded ad without finishing it (no reward)
-window.onAdClosed = () => {};
+window.onAdClosed = (placementId) => { adLog('closed ' + (placementId || '')); S._adTest = false; };
+window.onAdLoaded = (placementId) => adLog('loaded ' + placementId);
+window.onAdError = (placementId, msg) => adLog('ERROR ' + placementId + ': ' + msg);
+function adTestCall(fn, label) {
+  if (!hasNative()) { adLog('bridge missing: ' + label + ' not sent (open the app from the APK)'); return; }
+  try { fn(); adLog('sent: ' + label); } catch (e) { adLog('ERROR calling ' + label + ': ' + (e && e.message || e)); }
+}
+function adLog(msg) {
+  S._adLog = [{ t: new Date().toLocaleTimeString(), m: String(msg) }, ...(S._adLog || [])].slice(0, 60);
+  if (location.hash.indexOf('#/adtest') === 0) render(true);
+}
+// ---- Ad Test page (#/adtest): checks that the Android bridge and each Unity placement work
+views.adtest = () => {
+  const a = S.ads || {}, has = hasNative(), ok = (v) => v ? '<b class="text-emerald-600">ON</b>' : '<b class="text-slate-400">OFF</b>';
+  const btn = (act, label, cls) => `<button data-act="${act}" class="${cls} w-full rounded-xl py-3 text-sm font-semibold">${label}</button>`;
+  return `${backBtn('#/profile', 'Ad Test')}
+    <div class="mb-4 ${CARD} p-4 space-y-1 text-sm">
+      <p>Android bridge (TEAndroid): <b class="${has ? 'text-emerald-600' : 'text-red-600'}">${has ? 'FOUND' : 'NOT FOUND (open the app from the APK)'}</b></p>
+      <p>Banner: ${ok(a.banner_enabled)} &middot; Rewarded: ${ok(a.rewarded_enabled)} &middot; Interstitial: ${ok(a.inter_enabled)}</p>
+      <p class="text-xs text-slate-500">Placements: ${esc(NATIVE_ADS.banner)}, ${esc(NATIVE_ADS.interstitial)}, ${esc(NATIVE_ADS.rewarded)}</p>
+      <p class="text-xs text-slate-500">Turn the switches on in Admin &gt; Ads if they show OFF.</p></div>
+    <div class="grid grid-cols-2 gap-3">
+      ${btn('atbanner', 'Show banner', 'btn-primary text-white')}${btn('athide', 'Hide banner', 'bg-slate-100 text-slate-700')}
+      ${btn('atint', 'Test interstitial', 'btn-primary text-white')}${btn('atrew', 'Test rewarded (no coins)', 'btn-primary text-white')}</div>
+    <p class="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Event log</p>
+    <div class="${CARD} divide-y divide-slate-100 text-xs">${(S._adLog || []).map(x => `<div class="flex gap-3 p-2.5"><span class="shrink-0 text-slate-400">${esc(x.t)}</span><span>${esc(x.m)}</span></div>`).join('') || '<p class="p-3 text-slate-500">No events yet. Press a test button.</p>'}</div>`;
+};
+// Profile shows the Ad Test link only when the page is opened with ?adtest=1
+const _profileBase = views.profile;
+views.profile = function () {
+  return _profileBase() + (location.search.indexOf('adtest=1') > -1 ? '<a href="#/adtest" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-50 py-3.5 text-sm font-semibold text-amber-700"><i class="fa-solid fa-flask"></i>Ad Test</a>' : '');
+};
 
 // ================= v7 =================
 S.bgmTracks = S.bgmTracks || {}; S.cjoin = S.cjoin || {}; S.bgmIdx = 0; S._bgmFiles = {};
@@ -1466,6 +1499,10 @@ contestsPage = function () {
 const _extClickBase = extClick;
 extClick = function (b, a) {
   if (a === 'cjoin') { busy(() => joinContest(b.dataset.id)); return true; }
+  if (a === 'atbanner') { adTestCall(() => TEAndroid.showBanner(NATIVE_ADS.banner), 'banner show'); return true; }
+  if (a === 'athide') { adTestCall(() => TEAndroid.hideBanner(), 'banner hide'); return true; }
+  if (a === 'atint') { adTestCall(() => TEAndroid.showInterstitial(NATIVE_ADS.interstitial), 'interstitial'); return true; }
+  if (a === 'atrew') { S._adTest = true; adTestCall(() => TEAndroid.showRewarded(NATIVE_ADS.rewarded), 'rewarded'); return true; }
   if (a === 'bgmskip') { bgmSkip(); return true; }
   return _extClickBase(b, a);
 };
