@@ -1342,6 +1342,8 @@ function nativeRewarded() {
 // Called by the Android app when a rewarded ad was watched to the end (ok = true)
 window.onRewardGranted = (placementId, ok) => {
   adLog((ok ? 'REWARD ' : 'no reward ') + placementId);
+  if (S._xPending) { const done = S._xPending; S._xPending = null; done(!!ok); return; }   // Extra feature waiting for the ad: continue it (no coins here)
+
   if (S._adTest) { S._adTest = false; return; }          // Ad Test page: log only, never credit
   if (placementId !== NATIVE_ADS.rewarded || !ok || !S.user) return;
   busy(async () => {
@@ -1353,7 +1355,11 @@ window.onRewardGranted = (placementId, ok) => {
   });
 };
 // Called by the Android app when the user closes a rewarded ad without finishing it (no reward)
-window.onAdClosed = (placementId) => { adLog('closed ' + (placementId || '')); S._adTest = false; };
+window.onAdClosed = (placementId) => {
+  adLog('closed ' + (placementId || ''));
+  S._adTest = false;
+  if (S._xPending) { const done = S._xPending; S._xPending = null; done(false); }   // closed before the end: feature does not continue
+};
 window.onAdLoaded = (placementId) => adLog('loaded ' + placementId);
 window.onAdError = (placementId, msg) => adLog('ERROR ' + placementId + ': ' + msg);
 function adTestCall(fn, label) {
@@ -1386,6 +1392,20 @@ views.profile = function () {
   return _profileBase() + (location.search.indexOf('adtest=1') > -1 ? '<a href="#/adtest" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-50 py-3.5 text-sm font-semibold text-amber-700"><i class="fa-solid fa-flask"></i>Ad Test</a>' : '');
 };
 
+// ---- Unity rewarded ad in front of Extra features (Lucky Spin asks for it by default)
+const _extraAdBase = extraAd;
+extraAd = function (k) {
+  const cfgReq = xcfg(k).adRequired;
+  const req = cfgReq === undefined ? k === 'spin' : cfgReq === true;
+  if (!req) return Promise.resolve(true);
+  if (!hasNative()) return _extraAdBase(k);                 // browser: web ad as before
+  if (!adOn('rewarded_enabled')) return Promise.resolve(true);
+  return new Promise(res => {
+    S._xPending = res;
+    try { TEAndroid.showRewarded(NATIVE_ADS.rewarded); }
+    catch (_) { S._xPending = null; flash('error', 'Ad is not ready. Please try again.'); res(false); }
+  });
+};
 // ================= v7 =================
 S.bgmTracks = S.bgmTracks || {}; S.cjoin = S.cjoin || {}; S.bgmIdx = 0; S._bgmFiles = {};
 
