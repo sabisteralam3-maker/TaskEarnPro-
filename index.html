@@ -734,7 +734,7 @@ async function claimAd() {
 function onTaskDone() {
   if (hasNative()) {
     const a0 = S.ads || {};
-    if (a0.inter_enabled) { S._done++; if (S._done % (a0.inter_every || 3) === 0) { try { TEAndroid.showInterstitial(NATIVE_ADS.interstitial); } catch (_) {} } }
+    if (adOn('inter_enabled')) { S._done++; if (S._done % (a0.inter_every || 3) === 0) { try { TEAndroid.showInterstitial(NATIVE_ADS.interstitial); } catch (_) {} } }
     return;
   }
   const a = S.ads || {}; if (!a.inter_enabled || !adContent('inter', 250)) return;
@@ -995,7 +995,7 @@ const XF = {
   code: { title: 'Special Code', sub: 'Enter a code and get coins', icon: 'fa-key', c: 'from-emerald-500 to-teal-500' }
 };
 const xcfg = k => (S.extras && S.extras[k]) || {};
-const xLive = k => xcfg(k).live === true;                       // not live = "Coming soon"
+const xLive = k => { const v = xcfg(k).live; return v === undefined ? true : v === true; };                       // not live = "Coming soon"
 const xDaily = k => xcfg(k).daily || 3;
 const xLeft = k => Math.max(0, xDaily(k) - ((S.xu && S.xu[k]) || 0));
 const parsePrizes = s => { const a = String(s || '').split(/[,\s]+/).map(parseMoney).filter(x => x > 0 && x <= 50000).slice(0, 12); return a.length >= 2 ? a : [50, 100, 200, 500]; };
@@ -1325,8 +1325,9 @@ function watchPos(w) { try { if (w.player && w.player.getCurrentTime) return w.p
 // Unity Ads only runs inside the Android app (WebView wrapper). In a normal browser the web ads are used.
 const NATIVE_ADS = { banner: 'BP_Banner_Android', interstitial: 'BP_Interstitial_Android', rewarded: 'BP_Rewarded_Android' };
 const hasNative = () => !!(window.TEAndroid && typeof window.TEAndroid.showRewarded === 'function');
+const adOn = k => { const a = S.ads || {}; return a[k] === undefined ? true : a[k] === true; };   // default ON until Admin switches it off
 function nativeBanner() {
-  const a = S.ads || {}, want = !!(S.user && a.banner_enabled);
+  const want = !!(S.user && adOn('banner_enabled'));
   document.documentElement.classList.toggle('native-ads', want);
   if (want === S._nbShown) return;
   S._nbShown = want;
@@ -1334,7 +1335,7 @@ function nativeBanner() {
 }
 function nativeRewarded() {
   const a = S.ads || {};
-  if (!a.rewarded_enabled) return flash('error', 'Watch Ad is not available right now.');
+  if (!adOn('rewarded_enabled')) return flash('error', 'Watch Ad is not available right now.');
   if ((S.advToday || 0) >= (a.rewarded_limit || 10)) return flash('error', 'Daily ad limit reached. Come back tomorrow.');
   try { TEAndroid.showRewarded(NATIVE_ADS.rewarded); } catch (_) { flash('error', 'Ad is not ready yet. Please try again.'); }
 }
