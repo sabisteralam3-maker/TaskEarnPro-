@@ -1392,19 +1392,19 @@ views.profile = function () {
   return _profileBase() + (location.search.indexOf('adtest=1') > -1 ? '<a href="#/adtest" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-50 py-3.5 text-sm font-semibold text-amber-700"><i class="fa-solid fa-flask"></i>Ad Test</a>' : '');
 };
 
-// ---- Unity rewarded ad in front of Extra features (Lucky Spin asks for it by default)
+// ---- Extra coin features (spin, scratch, video, special code) ALWAYS need a rewarded ad. No ad, no coins.
 const _extraAdBase = extraAd;
 extraAd = function (k) {
-  const cfgReq = xcfg(k).adRequired;
-  const req = cfgReq === undefined ? k === 'spin' : cfgReq === true;
-  if (!req) return Promise.resolve(true);
-  if (!hasNative()) return _extraAdBase(k);                 // browser: web ad as before
-  if (!adOn('rewarded_enabled')) return Promise.resolve(true);
-  return new Promise(res => {
+  if (!adOn('rewarded_enabled')) { flash('error', 'Ads are not available right now. Please try again later.'); return Promise.resolve(false); }
+  if (hasNative()) return new Promise(res => {
     S._xPending = res;
     try { TEAndroid.showRewarded(NATIVE_ADS.rewarded); }
     catch (_) { S._xPending = null; flash('error', 'Ad is not ready. Please try again.'); res(false); }
   });
+  // browser: the web ad (set in Admin > Ads) is shown; the admin switch is ignored
+  const prev = S.extras && S.extras[k];
+  S.extras = S.extras || {}; S.extras[k] = { ...(prev || {}), adRequired: true };
+  try { return _extraAdBase(k); } finally { S.extras[k] = prev; }
 };
 // ================= v7 =================
 S.bgmTracks = S.bgmTracks || {}; S.cjoin = S.cjoin || {}; S.bgmIdx = 0; S._bgmFiles = {};
