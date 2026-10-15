@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<title>TaskEarnPro</title>
+<title>TaskEarnPro 2.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -166,6 +166,19 @@
   /* native (Android app): leave room for the Unity banner above the bottom menu */
   html.native-ads .bottom-nav{bottom:calc(58px + var(--sab))}
   html.native-ads #musicFab{bottom:calc(150px + var(--sab))}
+
+  /* ===== TaskEarnPro 2.0 theme (same features, new look) ===== */
+  body{background-image:radial-gradient(60% 40% at 10% 0%,rgba(6,182,212,.35),transparent 60%),radial-gradient(50% 40% at 100% 10%,rgba(124,58,237,.3),transparent 60%),radial-gradient(60% 45% at 0% 100%,rgba(219,39,119,.22),transparent 60%)!important}
+  .hero{background:linear-gradient(135deg,#0ea5e9,#7c3aed 60%,#db2777)!important}
+  .btn-primary{background:linear-gradient(135deg,#06b6d4,#7c3aed)!important}
+  .btn-start{background:linear-gradient(110deg,#06b6d4,#7c3aed,#db2777,#06b6d4)!important;background-size:250% 100%}
+  .bg-indigo-600{background-color:#7c3aed!important}
+  .text-indigo-600{color:#7c3aed!important}
+  .bg-indigo-50{background-color:#f5f3ff!important}
+  /* splash (opening animation): gradient background with moving light */
+  #boot{background:radial-gradient(60% 50% at 18% 12%,rgba(6,182,212,.55),transparent 60%),radial-gradient(55% 50% at 88% 22%,rgba(168,85,247,.5),transparent 60%),radial-gradient(70% 60% at 50% 105%,rgba(236,72,153,.45),transparent 60%),linear-gradient(160deg,#0f172a,#1e1b4b 55%,#312e81)!important;overflow:hidden}
+  #boot::before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,transparent,rgba(255,255,255,.07),transparent 40%);animation:spinSplash 14s linear infinite;pointer-events:none}
+  @keyframes spinSplash{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -222,7 +235,7 @@ const DOMAIN = 'taskearn.user';   // mobile number becomes  9876543210@taskearn.
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // All money is stored as integer PAISE (100 paise = 1 rupee) so there are no floating point errors.
-const DEF = { site_name: 'TaskEarnPro', upi_min: 1000, upi_fee_pct: 15, upi_max: 100000, gift_min: 1000, gift_max: 800000, currency_symbol: '₹', referral_reward: 200, referral_tasks: 5, referee_bonus: 0, support_email: 'trickysofiyaofficial@gmail.com', add_upi: '6299602745@ybl', add_min: 1000, add_max: 1000000, referral_message: 'TaskEarnPro se roz paise kamao! Video dekho, simple tasks karo, daily check-in karo aur UPI, Amazon ya Google Play me redeem karo. Mera referral code {code} use karo aur extra bonus pao. Abhi download karo: {link}', referral_link: 'https://swiftapk.io/dashboard/download?id=810', welcome_bonus: 0, daily_checkin_reward: 500, promo_price: 800, promo_reward: 500 };
+const DEF = { site_name: 'TaskEarnPro 2.0', upi_min: 1000, upi_fee_pct: 15, upi_max: 100000, gift_min: 1000, gift_max: 800000, currency_symbol: '₹', referral_reward: 200, referral_tasks: 5, referee_bonus: 0, support_email: 'trickysofiyaofficial@gmail.com', add_upi: '6299602745@ybl', add_min: 1000, add_max: 1000000, referral_message: 'TaskEarnPro se roz paise kamao! Video dekho, simple tasks karo, daily check-in karo aur UPI, Amazon ya Google Play me redeem karo. Mera referral code {code} use karo aur extra bonus pao. Abhi download karo: {link}', referral_link: 'https://swiftapk.io/dashboard/download?id=810', welcome_bonus: 0, daily_checkin_reward: 500, promo_price: 800, promo_reward: 500 };
 const S = { user: null, profile: null, settings: {}, tasks: {}, ut: {}, stats: {}, tx: {}, wd: {}, refs: {}, lb: {}, promos: {}, method: 'upi', flash: null, cat: 'all', txShown: 20, authMode: 'login', authErr: '', refPrefill: '', signingUp: false, busy: false };
 let unsubs = [], lastRoute = '';
 const cfg = k => { if (k === 'upi_min' && S.settings && S.settings.upi_fee_pct == null) return DEF.upi_min; return (S.settings && S.settings[k] != null) ? S.settings[k] : DEF[k]; };   // until the new fee setting is saved, UPI minimum is the new default
@@ -578,6 +591,7 @@ function buildShell() {
   $('#shell').innerHTML = `
   <header class="glass-bar app-header sticky top-0 z-30 flex items-center justify-between px-4">
     <a href="#/home" class="flex items-center gap-2.5"><img src="${LOGO}" alt="" class="h-9 w-9 rounded-xl"><span class="js-site text-base font-bold tracking-tight"></span></a>
+    <button type="button" id="bellBtn" aria-label="Notifications" class="relative mr-1 flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 active:bg-slate-100"><i class="fa-solid fa-bell text-lg"></i><span id="bellDot" class="absolute right-0.5 top-0.5 min-w-[18px] rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-[18px] text-white" style="display:none"></span></button>
     <button type="button" id="menuBtn" aria-label="Open menu" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 active:bg-slate-100"><i class="fa-solid fa-bars text-lg"></i></button></header>
   <div id="drawer" class="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 overflow-hidden">
     <div id="overlay" class="absolute inset-0 bg-slate-900/30 opacity-0 backdrop-blur-sm transition-opacity duration-300"></div>
@@ -912,8 +926,8 @@ const OFFICIAL_LOGO = { cpx: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWQA
 const DEFAULT_PARTNERS = [['pubscale', 'PubScale', 'task', 30], ['timewall', 'TimeWalls', 'task', 20], ['cpidroid', 'Cpi Droid', 'task', 0], ['cpx', 'CPX Research', 'survey', 35], ['pollreach', 'Poll Reach', 'survey', 20], ['theoremreach', 'Theorem Reach', 'survey', 0], ['playtime', 'Playtime', 'gaming', 0], ['spawntap', 'SpawnTap', 'gaming', 0], ['capsbit', 'Capsbit', 'gaming', 0]];
 const CATS = { task: 'Task Partners', survey: 'Survey Partners', gaming: 'Gaming Partners', other: 'More Partners' };
 const PCOLS = { task: ['#22d3ee', '#3b82f6'], survey: ['#c4b5fd', '#6366f1'], gaming: ['#60a5fa', '#a855f7'], other: ['#f0abfc', '#6366f1'] };
-const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=' };   // live even if the admin never added a link
-const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, };
+const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=', wannads_wall: 'https://earn.wannads.com/wall?apiKey=6ad12703611cd701313712&userId={uid}', wannads_survey: 'https://earn.wannads.com/surveywall?apiKey=6ad12703611cd701313712&userId={uid}' };   // live even if the admin never added a link
+const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, wannads_wall: { name: 'Wannads Offerwall', category: 'task', bonus: 0, order: 2 }, wannads_survey: { name: 'Wannads Surveys', category: 'survey', bonus: 0, order: 3 }, };
 const partnerList = () => {
   const adminRows = Object.entries(S.partners || {}).map(([id, p]) => ({ ...p, id }));
   const rows0 = adminRows.length ? adminRows : DEFAULT_PARTNERS.map(([id, name, category, bonus], i) => ({ id, name, category, bonus, order: i + 1, enabled: true }));
@@ -921,7 +935,7 @@ const partnerList = () => {
   const rows = rows0.filter(r => r.id !== 'capsbit');   // Capsbit removed from the app
   return rows.map(p => {
     const pin = PINNED[p.id];
-    const url = p.id !== 'cpx' ? '' : p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
+    const url = !['cpx', 'wannads_wall', 'wannads_survey'].includes(p.id) ? '' : p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
     return { ...p, order: pin ? pin.order : (p.order || 50) + 10, logo: p.logo || OFFICIAL_LOGO[p.id] || null, url, live: !!(url || p.code) };
   }).filter(p => p.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
 };
@@ -1418,11 +1432,11 @@ async function giftRedeem(mk, amtStr, email) {
   try {
     const tok = await S.user.getIdToken();
     const res = await fetch('/api/gift-claim', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ type: mk, amount: (amt / 100).toFixed(2), email }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return flash('error', data.error || 'Could not redeem. Please try again.');
+    const text = await res.text(); let data = {}; try { data = JSON.parse(text); } catch (_) {}
+    if (!res.ok) return flash('error', data.error || ('Redeem failed (code ' + res.status + '). ' + (res.status === 404 ? 'The api/gift-claim.js file is not on the server yet.' : 'Please try again.')));
     if (data.code) flash('success', 'Congratulations! Your ' + m.label + ' code is ready: ' + data.code + '. Copy it now. It is also sent to ' + email + ' and shown in Recent Requests.');
     else flash('success', 'Request received. Instant stock is not available for this amount, so your request is pending. Your code will be sent to ' + email + ' after review.');
-  } catch (e) { flash('error', 'Network problem. Please check your connection and try again.'); }
+  } catch (e) { flash('error', 'Network problem: ' + (e && e.message ? e.message : 'please try again.')); }
 }
 
 // ---- Music: playlist from Admin, skip, on/off, pauses while a tutorial / watch video / any video is playing
@@ -1554,8 +1568,61 @@ function updateFab() {
 }
 setInterval(updateFab, 1500);
 
+
+// ================= TaskEarnPro 2.0: notifications panel =================
+S.notifs = S.notifs || {};
+function notifList() { return Object.entries(S.notifs || {}).map(([id, n]) => ({ id, ...n })).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 50); }
+function notifUnread() { const seen = Number(lsGet('te_notif_seen') || 0); return notifList().filter(n => (n.ts || 0) > seen).length; }
+function updateBell() {
+  const dot = document.getElementById('bellDot'); if (!dot) return;
+  const n = notifUnread(); dot.textContent = n > 9 ? '9+' : String(n); dot.style.display = n ? '' : 'none';
+}
+setInterval(updateBell, 2000);
+function openNotifs() {
+  let m = document.getElementById('notifPanel');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'notifPanel';
+    m.className = 'fixed inset-0 z-[88] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center';
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-np=close]')) m.remove(); });
+    document.body.appendChild(m);
+  }
+  const list = notifList();
+  m.innerHTML = `<div class="${CARD} w-full max-w-md rounded-t-3xl p-5 sm:rounded-3xl" style="max-height:80vh;overflow:auto;padding-bottom:calc(20px + var(--sab))">
+    <div class="mb-3 flex items-center justify-between"><h3 class="text-base font-bold">Notifications</h3><button data-np="close" class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button></div>
+    ${list.length ? list.map(n => `<div class="mb-2 rounded-2xl border border-slate-100 p-3.5"><p class="text-sm font-bold">${esc(n.title)}</p><p class="mt-1 whitespace-pre-line text-sm text-slate-600">${esc(n.message)}</p><p class="mt-1 text-[11px] text-slate-400">${esc(fmt(n.ts))}</p></div>`).join('') : emptyBox('fa-bell', 'No notifications yet.', 'Updates from the team will appear here.')}</div>`;
+  lsSet('te_notif_seen', String(Date.now())); updateBell();
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#bellBtn')) openNotifs(); });
+
+
+// ================= v11: home banner slider (managed in Admin > Ads) =================
+S.banners = S.banners || {};
+function bannerSlider() {
+  const list = Object.entries(S.banners || {}).map(([id, b]) => ({ id, ...b })).filter(b => b.active !== false && b.image).sort((a, b) => (a.order || 0) - (b.order || 0));
+  if (!list.length) return '';
+  const idx = (S._bIdx || 0) % list.length;
+  const slide = b => b.link
+    ? `<a href="${esc(b.link)}" target="_blank" rel="noopener noreferrer" class="block shrink-0" style="min-width:100%"><img src="${esc(b.image)}" alt="${esc(b.title || '')}" loading="lazy" class="w-full object-cover" style="aspect-ratio:16/7"></a>`
+    : `<div class="block shrink-0" style="min-width:100%"><img src="${esc(b.image)}" alt="${esc(b.title || '')}" loading="lazy" class="w-full object-cover" style="aspect-ratio:16/7"></div>`;
+  return `<div id="bslider" class="relative mb-5 overflow-hidden rounded-3xl shadow-lg">
+    <div id="btrack" class="flex transition-transform duration-700 ease-out" style="transform:translateX(-${idx * 100}%)">${list.map(slide).join('')}</div>
+    ${list.length > 1 ? `<div class="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">${list.map((b, i) => `<button data-act="bdot" data-i="${i}" class="h-2 rounded-full transition-all ${i === idx ? 'w-6 bg-white' : 'w-2 bg-white/50'}" aria-label="Slide ${i + 1}"></button>`).join('')}</div>` : ''}</div>`;
+}
+function bannerGo(i) {
+  const tr = document.getElementById('btrack'), dots = document.querySelectorAll('#bslider [data-act=bdot]');
+  if (!tr) return;
+  const n = Math.max(1, document.querySelectorAll('#btrack > *').length);
+  S._bIdx = ((i % n) + n) % n;
+  tr.style.transform = `translateX(-${S._bIdx * 100}%)`;
+  dots.forEach((d, k) => { d.className = `h-2 rounded-full transition-all ${k === S._bIdx ? 'w-6 bg-white' : 'w-2 bg-white/50'}`; });
+}
+setInterval(() => { if (document.getElementById('btrack')) bannerGo((S._bIdx || 0) + 1); }, 4000);
+const _homeBase = views.home;
+views.home = function () { return bannerSlider() + _homeBase(); };
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
+  if (a === 'bdot') { bannerGo(Number(b.dataset.i)); return true; }
   if (a === 'music') { lsSet('te_music', musicOn() ? 'off' : 'on'); bgmApply(); render(true); return true; }
   if (a === 'xopen') { const k = b.dataset.k; if (!xLive(k)) flash('error', XF[k].title + ' is coming soon.'); else location.hash = '#/extra/' + k; return true; }
   if (a === 'xspin') { doSpin(); return true; }
@@ -1618,7 +1685,7 @@ async function boot(u) {
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
   listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
-  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin');
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin'); listen('notifications', 'notifs'); listen('homeBanners', 'banners');
   unsubs.push(onValue(ref(db, `extraUse/${uid}/${todayStr()}`), x => { S.xu = x.val() || {}; render(); }, () => {}));
   unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
