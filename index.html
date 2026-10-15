@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
-  html,body{overscroll-behavior-y:contain;-webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior-y:auto;-webkit-tap-highlight-color:transparent}
   body{-webkit-user-select:none;user-select:none;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
   input,textarea,select,.selectable{-webkit-user-select:text;user-select:text}
   .no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{scrollbar-width:none}
@@ -35,7 +35,7 @@
 
   :root{--env-t:env(safe-area-inset-top,0px);--env-b:env(safe-area-inset-bottom,0px);--wv-t:0px;--wv-b:0px;--sat:max(var(--env-t),var(--wv-t));--sab:max(var(--env-b),var(--wv-b))}
   html.wv{--wv-t:34px;--wv-b:14px}
-  html{scroll-behavior:smooth}
+  html{scroll-behavior:auto}
   .app-header{padding-top:var(--sat);min-height:calc(56px + var(--sat))}
   .side-top{padding-top:calc(16px + var(--sat))}
   .bottom-nav{bottom:calc(12px + var(--sab))}
@@ -179,6 +179,15 @@
   #boot{background:radial-gradient(60% 50% at 18% 12%,rgba(6,182,212,.55),transparent 60%),radial-gradient(55% 50% at 88% 22%,rgba(168,85,247,.5),transparent 60%),radial-gradient(70% 60% at 50% 105%,rgba(236,72,153,.45),transparent 60%),linear-gradient(160deg,#0f172a,#1e1b4b 55%,#312e81)!important;overflow:hidden}
   #boot::before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,transparent,rgba(255,255,255,.07),transparent 40%);animation:spinSplash 14s linear infinite;pointer-events:none}
   @keyframes spinSplash{to{transform:rotate(360deg)}}
+
+  /* ===== v13: code popup, stats, polish ===== */
+  .pop-in{animation:popIn .55s cubic-bezier(.2,1.4,.4,1) both}
+  @keyframes popIn{from{opacity:0;transform:scale(.7) translateY(20px)}to{opacity:1;transform:none}}
+  .tick{animation:tickDraw .6s ease-out .25s both}
+  @keyframes tickDraw{from{transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+  .spark{position:absolute;width:8px;height:8px;border-radius:9999px;animation:spark 1.1s ease-out forwards;opacity:0}
+  @keyframes spark{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(.4)}}
+  .code-box{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -317,12 +326,12 @@ async function completeTask(id, file, verified) {
       if ((t.verifyWords || []).length) { try { autoOk = await ocrCheck(file, t.verifyWords); } catch (_) { autoOk = false; } }
       await set(ref(db, `userTasks/${uid}/${id}`), autoOk ? { ...rec, status: 'approved', auto: true } : { ...rec, status: 'pending' });
       if (autoOk && rec.reward > 0) await credit(uid, rec.reward, 'Task completed: ' + t.title, true);           // one record per user+task = no duplicates
-      await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
+      await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1); await runTransaction(ref(db, 'pubStats/tasks/' + todayStr()), c => (c || 0) + 1).catch(() => {});
       flash('success', autoOk ? 'Screenshot verified. Reward added to your wallet.' : 'Screenshot could not be verified automatically. It is pending admin review.');
     } else {
       await set(ref(db, `userTasks/${uid}/${id}`), { ...rec, status: 'approved' });          // rules reject a second claim
       if (rec.reward > 0) await credit(uid, rec.reward, t.type === 'daily' ? 'Daily check-in reward' : 'Task completed: ' + t.title, true);
-      if (t.type !== 'daily') await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1);
+      if (t.type !== 'daily') await runTransaction(ref(db, `taskStats/${id}`), c => (c || 0) + 1); await runTransaction(ref(db, 'pubStats/tasks/' + todayStr()), c => (c || 0) + 1).catch(() => {});
       flash('success', t.type === 'daily' ? 'Daily reward claimed. Come back tomorrow.' : 'Task completed. Reward added to your wallet.');
     }
     onTaskDone();
@@ -521,7 +530,7 @@ const views = {
       <button type="submit" class="${BTN}"><i class="${m.icon}"></i>Redeem ${esc(m.label)}</button></form>
       <h2 class="mb-3 mt-6 text-base font-bold">Recent Requests</h2>
       ${!recent.length ? emptyBox('fa-gift', 'No redeem requests.') : `<div class="divide-y divide-slate-100 ${CARD}">${recent.map(w => { const mm = METHODS[w.method || 'upi'] || METHODS.upi; return `<div class="flex items-center justify-between gap-3 p-3.5"><div class="min-w-0"><p class="text-sm font-bold">${esc(money(w.amount))} <span class="font-medium text-slate-500">&middot; ${esc(mm.label)}</span></p>
-        ${w.upi ? `<p class="truncate text-xs text-slate-500">${esc(w.upi)}</p>` : ''}${w.fee ? `<p class="text-xs text-slate-500">Fee ${esc(money(w.fee))} &middot; You get <b>${esc(money(w.net))}</b></p>` : ''}${w.code ? `<p class="selectable mt-1 break-all rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">Code: ${esc(w.code)}</p>` : ''}${w.status === 'rejected' && w.reason ? `<p class="mt-1 text-xs font-semibold text-red-600">Reason: ${esc(w.reason)}</p>` : ''}<p class="text-xs text-slate-400">${esc(fmt(w.createdAt))}</p></div>${badge(w.status)}</div>`; }).join('')}</div>`}`;
+        ${w.upi ? `<p class="truncate text-xs text-slate-500">${esc(w.upi)}</p>` : ''}${w.fee ? `<p class="text-xs text-slate-500">Fee ${esc(money(w.fee))} &middot; You get <b>${esc(money(w.net))}</b></p>` : ''}${w.code ? `<p class="selectable mt-1 break-all rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">Code: ${esc(w.code)}</p><div class="mt-1 flex flex-wrap gap-2"><button data-act="copy" data-v="${esc(w.code)}" class="rounded-lg bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">Copy code</button><a href="${w.method === 'amazon' ? 'https://www.amazon.in/gc/redeem' : 'https://play.google.com/redeem'}" target="_blank" rel="noopener" class="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">Redeem now</a></div>` : ''}${w.status === 'rejected' && w.reason ? `<p class="mt-1 text-xs font-semibold text-red-600">Reason: ${esc(w.reason)}</p>` : ''}<p class="text-xs text-slate-400">${esc(fmt(w.createdAt))}</p></div>${badge(w.status)}</div>`; }).join('')}</div>`}`;
   },
 
   leaderboard() {
@@ -969,7 +978,7 @@ async function openPartner(id) {
   let m = $('#pSheet'); if (!m) { m = document.createElement('div'); m.id = 'pSheet'; m.className = 'fixed inset-0 z-[85] flex flex-col bg-white';
     m.addEventListener('click', e => { if (e.target.closest('[data-ps=close]')) { m.classList.add('hidden'); m.innerHTML = ''; } }); document.body.appendChild(m); }
   const frame = isCode ? `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms" srcdoc="${esc(fillPh(p.code))}" class="w-full flex-1 border-0"></iframe>`
-    : `<iframe src="${esc(u)}" class="w-full flex-1 border-0" allow="autoplay; fullscreen; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+    : `<iframe src="${esc(u)}" class="w-full border-0" style="flex:1 1 auto;min-height:0;height:100%;max-width:100%" allow="autoplay; fullscreen; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
   m.innerHTML = `<div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 pb-2" style="padding-top:calc(8px + var(--sat))"><p class="truncate text-sm font-bold">${esc(p.name)}</p><div class="flex shrink-0 gap-2">${isCode ? '' : `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"><i class="fa-solid fa-up-right-from-square mr-1"></i>Browser</a>`}<button data-ps="close" class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-xmark"></i></button></div></div>${frame}`;
   m.classList.remove('hidden');
 }
@@ -1620,6 +1629,90 @@ setInterval(() => { if (document.getElementById('btrack')) bannerGo((S._bIdx || 
 const _homeBase = views.home;
 views.home = function () { return bannerSlider() + _homeBase(); };
 
+
+// ================= v13: stats, stock availability, code popup, full leaderboard =================
+S.activity = S.activity || {}; S.pubStats = S.pubStats || {}; S.giftAvail = S.giftAvail || {}; S.lbShown = S.lbShown || 50;
+function heartbeat() { if (S.user) set(ref(db, 'activity/' + S.user.uid), Date.now()).catch(() => {}); }
+setInterval(heartbeat, 60000); setTimeout(heartbeat, 4000);
+function statsStrip() {
+  if (!S.user) return '';
+  const now = Date.now(), active = Object.values(S.activity || {}).filter(t => typeof t === 'number' && now - t < 86400000).length;
+  const tasks = ((S.pubStats || {}).tasks || {})[todayStr()] || 0;
+  const card = (label, val, icon, c) => `<div class="${CARD} flex items-center gap-3 p-3.5"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${c}"><i class="fa-solid ${icon}"></i></span><div><p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">${label}</p><p class="text-lg font-extrabold">${val}</p></div></div>`;
+  return `<div class="mb-5 grid grid-cols-2 gap-3">${card('Active users (24h)', active, 'fa-user-group', 'bg-indigo-50 text-indigo-600')}${card('Tasks done today', tasks, 'fa-circle-check', 'bg-emerald-50 text-emerald-600')}</div>`;
+}
+const _homeV12 = views.home;
+views.home = function () { return statsStrip() + _homeV12(); };
+function availBar() {
+  if (S.method === 'upi') return '';
+  const rows = Object.entries((S.giftAvail || {})[S.method] || {}).map(([p, c]) => ({ p: Number(p), c: Number(c) || 0 })).filter(x => x.c > 0).sort((a, b) => a.p - b.p);
+  return `<div class="mb-4 ${CARD} p-4"><p class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Instant codes available</p>${rows.length
+    ? `<div class="flex flex-wrap gap-2">${rows.map(x => `<button type="button" data-act="preset" data-v="${x.p / 100}" class="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 active:scale-95">${esc(money(x.p))} <span class="text-xs font-semibold text-emerald-600">&middot; ${x.c} left</span></button>`).join('')}</div>`
+    : '<p class="text-sm text-slate-500">No instant stock right now. Your request is reviewed and the code is sent to your email.</p>'}</div>`;
+}
+const _wdV12 = views.withdraw;
+views.withdraw = function () { const h = _wdV12(), i = h.indexOf('</div>') + 6; return h.slice(0, i) + availBar() + h.slice(i); };
+function showCodeModal(code, type, amt) {
+  const name = type === 'amazon' ? 'Amazon' : 'Google Play';
+  const link = type === 'amazon' ? 'https://www.amazon.in/gc/redeem' : 'https://play.google.com/redeem';
+  let m = document.getElementById('codeModal');
+  if (!m) { m = document.createElement('div'); m.id = 'codeModal'; m.className = 'fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-5 backdrop-blur-sm'; m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-cm=close]')) m.remove(); if (e.target.closest('[data-cm=copy]')) copyTxt(m.dataset.code).then(() => { e.target.closest('[data-cm=copy]').innerText = 'Copied!'; }); }); document.body.appendChild(m); }
+  m.dataset.code = code;
+  const sparks = Array.from({ length: 14 }, (_, i) => { const a = i / 14 * Math.PI * 2, d = 90 + (i % 3) * 25; return `<span class="spark" style="left:50%;top:38%;background:${['#f59e0b','#ec4899','#06b6d4','#8b5cf6'][i % 4]};--x:${Math.round(Math.cos(a) * d)}px;--y:${Math.round(Math.sin(a) * d)}px"></span>`; }).join('');
+  m.innerHTML = `<div class="${CARD} pop-in relative w-full max-w-sm overflow-hidden rounded-3xl p-6 text-center">${sparks}
+    <span class="tick mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-4xl text-white shadow-xl"><i class="fa-solid fa-check"></i></span>
+    <h3 class="mt-4 text-xl font-extrabold">${esc(name)} code is ready!</h3>
+    <p class="mt-1 text-sm text-slate-500">Amount ${esc(money(amt))}. Copy it now and keep it safe.</p>
+    <div class="code-box selectable mt-4 break-all rounded-2xl bg-slate-900 px-4 py-4 text-base font-bold text-emerald-300">${esc(code)}</div>
+    <div class="mt-4 grid grid-cols-2 gap-3"><button data-cm="copy" class="btn-primary rip rounded-xl py-3 text-sm font-bold text-white"><i class="fa-solid fa-copy mr-1"></i>Copy code</button><a href="${link}" target="_blank" rel="noopener" class="btn-start rounded-xl py-3 text-center text-sm font-bold"><i class="fa-solid fa-gift mr-1"></i>Redeem now</a></div>
+    <button data-cm="close" class="mt-3 w-full rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600">Close</button></div>`;
+}
+giftRedeem = async function (mk, amtStr, email) {
+  const amt = parseMoney(amtStr), m = METHODS[mk];
+  if (!amt || amt <= 0) return flash('error', 'Enter a valid amount.');
+  if (amt < cfg(m.min)) return flash('error', 'Minimum for ' + m.label + ' is ' + money(cfg(m.min)) + '.');
+  if (amt > cfg(m.max)) return flash('error', 'Maximum for ' + m.label + ' is ' + money(cfg(m.max)) + '.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return flash('error', 'Enter a valid email address.');
+  if ((S.profile.balance || 0) < amt) return flash('error', 'Insufficient wallet balance.');
+  try {
+    const tok = await S.user.getIdToken();
+    const res = await fetch('/api/gift-claim', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ type: mk, amount: (amt / 100).toFixed(2), email }) });
+    const text = await res.text(); let data = {}; try { data = JSON.parse(text); } catch (_) {}
+    if (!res.ok) return flash('error', data.error || ('Redeem failed (code ' + res.status + '). Please try again.'));
+    if (data.code) showCodeModal(data.code, mk, amt);
+    else flash('success', 'Request received. No instant stock for this amount, so it is pending. The code will be sent to ' + email + ' after review.');
+  } catch (e) { flash('error', 'Network problem: ' + (e && e.message ? e.message : 'please try again.')); }
+};
+views.leaderboard = function (arg) {
+  const tabs = `<div class="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/60 p-1 backdrop-blur"><a href="#/leaderboard" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'text-slate-500' : 'btn-primary text-white'}">Leaderboard</a><a href="#/leaderboard/contests" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'btn-primary text-white' : 'text-slate-500'}">Contests</a></div>`;
+  if (arg === 'contests') return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">Contests with cash prizes</p>${tabs}${contestsPage().replace(backBtn('#/extra', 'Contests'), '')}`;
+  const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+  const ini = n => (String(n || '?').trim()[0] || '?').toUpperCase();
+  const all = Object.entries(S.lb || {}).map(([id, v]) => ({ id, name: v.name, earned: v.earned || 0 })).filter(r => r.name).sort((a, b) => b.earned - a.earned);
+  const me = all.findIndex(r => r.id === S.user.uid), mine = me >= 0 ? all[me] : null;
+  const seat = (r, pos) => {
+    if (!r) return '<div class="flex-1"></div>';
+    const king = pos === 1, size = king ? 'h-20 w-20 text-2xl' : 'h-14 w-14 text-base', h = king ? 'h-32' : pos === 2 ? 'h-24' : 'h-20';
+    const grad = king ? 'from-amber-300 via-yellow-400 to-orange-500' : pos === 2 ? 'from-slate-200 to-slate-400' : 'from-orange-300 to-amber-700';
+    return `<div class="pod-col p${pos} flex flex-1 flex-col items-center">${king ? '<span class="king-crown mb-1 text-3xl"><i class="fa-solid fa-crown"></i></span>' : ''}
+      <span class="${king ? 'king-ring' : ''} relative flex ${size} items-center justify-center rounded-full bg-gradient-to-br ${grad} font-extrabold text-white shadow-lg">${esc(ini(r.name))}</span>
+      <p class="mt-2 max-w-[96px] truncate text-xs font-extrabold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-[11px] font-semibold text-indigo-600">${esc(money(r.earned))}</p>
+      <div class="pod-block mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${grad} pt-2 text-lg font-extrabold text-white ${h}">${pos}</div></div>`;
+  };
+  const podium = all.length ? `<div class="relative mb-6 overflow-hidden rounded-3xl px-3 pt-4 ${CARD}"><p class="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[0.25em] text-amber-600">${all[0] ? 'King of the leaderboard' : ''}</p><div class="flex items-end justify-center gap-3">${seat(all[1], 2)}${seat(all[0], 1)}${seat(all[2], 3)}</div></div>` : '';
+  const shown = all.slice(3, 3 + S.lbShown);
+  const rows = shown.map((r, i) => `<div class="rank-row flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/70' : ''}" style="--i:${i % 20}"><span class="w-9 text-center text-sm font-extrabold text-slate-500">${i + 4}</span><span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">${esc(ini(r.name))}</span><p class="min-w-0 flex-1 truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('');
+  const more = all.length > 3 + S.lbShown ? `<button data-act="lbmore" class="mt-3 w-full rounded-xl bg-white/70 py-3 text-sm font-bold text-indigo-700 shadow-sm">Show more (${all.length - 3 - S.lbShown} left)</button>` : '';
+  return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">All ${all.length} users &middot; top earners</p>${tabs}
+    <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p><p class="relative mt-1 text-3xl font-bold">${mine ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${mine ? 'Total earned ' + esc(money(mine.earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
+    ${podium || emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!')}${rows ? `<div class="divide-y divide-slate-100 ${CARD}">${rows}</div>` : ''}${more}`;
+};
+const _extClickV12 = extClick;
+extClick = function (b, a) {
+  if (a === 'lbmore') { S.lbShown += 50; render(true); return true; }
+  return _extClickV12(b, a);
+};
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
   if (a === 'bdot') { bannerGo(Number(b.dataset.i)); return true; }
@@ -1677,6 +1770,8 @@ $('#shell').addEventListener('submit', e => {
 function listen(path, key, q) { unsubs.push(onValue(q || ref(db, path), s => { S[key] = s.val() || {}; S._loaded[key] = true; delete S.errs[key]; if (key === 'tx' || key === 'lb') maybeSyncLb(); if (key === 'ads') { updateAds(); S._slotSig = null; updateSlot(route()[0]); }
     if (key === 'bgm') bgmApply(); render(); }, e => { S.errs[key] = e.message; S._loaded[key] = true; console.error(path, e.message); render(); })); }
 async function boot(u) {
+  document.getElementById('introBox')?.remove(); lsSet('te_intro', '1');
+  document.getElementById('boot') && document.getElementById('boot').classList.add('hidden');
   S.user = u;
   const snap = await get(ref(db, 'users/' + u.uid));
   if (!snap.exists()) { S.authErr = 'Account profile not found. Please create an account.'; await signOut(auth); return; }
@@ -1684,8 +1779,8 @@ async function boot(u) {
   S.profile = snap.val(); const uid = u.uid;
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
-  listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(50)));
-  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin'); listen('notifications', 'notifs'); listen('homeBanners', 'banners');
+  listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(1000)));
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin'); listen('notifications', 'notifs'); listen('homeBanners', 'banners'); listen('activity', 'activity'); listen('pubStats', 'pubStats'); listen('giftAvail', 'giftAvail');
   unsubs.push(onValue(ref(db, `extraUse/${uid}/${todayStr()}`), x => { S.xu = x.val() || {}; render(); }, () => {}));
   unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
