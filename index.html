@@ -420,6 +420,11 @@ function teardown() { unsubs.forEach(u => u()); unsubs = []; S._loaded = {}; S._
 function renderAuth(force) {
   const a = document.activeElement, box = $('#auth');
   if (!force && a && /INPUT/.test(a.tagName) && box.contains(a)) return;
+  // rebuild the form only when something on it really changed (mode, error, loading, site name);
+  // otherwise a slow auth check would wipe what the user is typing and close the keyboard
+  const sig = [S.authMode, S.authErr || '', S.signingUp ? 1 : 0, cfg('site_name')].join('|');
+  if (box.dataset.sig === sig && box.querySelector('form')) return;
+  box.dataset.sig = sig;
   const su = S.authMode === 'signup';
   const L = (n, label, attrs) => `<div><label class="mb-1.5 block text-xs font-semibold text-slate-600">${label}</label><input name="${n}" ${attrs} class="${INP}"></div>`;
   box.innerHTML = `<div class="auth-wrap flex min-h-screen flex-col px-6 pb-10">
@@ -935,16 +940,16 @@ const OFFICIAL_LOGO = { cpx: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWQA
 const DEFAULT_PARTNERS = [['pubscale', 'PubScale', 'task', 30], ['timewall', 'TimeWalls', 'task', 20], ['cpidroid', 'Cpi Droid', 'task', 0], ['cpx', 'CPX Research', 'survey', 35], ['pollreach', 'Poll Reach', 'survey', 20], ['theoremreach', 'Theorem Reach', 'survey', 0], ['playtime', 'Playtime', 'gaming', 0], ['spawntap', 'SpawnTap', 'gaming', 0], ['capsbit', 'Capsbit', 'gaming', 0]];
 const CATS = { task: 'Task Partners', survey: 'Survey Partners', gaming: 'Gaming Partners', other: 'More Partners' };
 const PCOLS = { task: ['#22d3ee', '#3b82f6'], survey: ['#c4b5fd', '#6366f1'], gaming: ['#60a5fa', '#a855f7'], other: ['#f0abfc', '#6366f1'] };
-const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=', wannads_wall: 'https://earn.wannads.com/wall?apiKey=6ad12703611cd701313712&userId={uid}', wannads_survey: 'https://earn.wannads.com/surveywall?apiKey=6ad12703611cd701313712&userId={uid}' };   // live even if the admin never added a link
-const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, wannads_wall: { name: 'Wannads Offerwall', category: 'task', bonus: 0, order: 2 }, wannads_survey: { name: 'Wannads Surveys', category: 'survey', bonus: 0, order: 3 }, };
+const BUILTIN_URL = { cpx: 'https://offers.cpx-research.com/index.php?app_id=36888&ext_user_id={uid}&subid_1=&subid_2=', wannads_wall: 'https://earn.wannads.com/wall?apiKey=6ad12703611cd701313712&userId={uid}', wannads_survey: 'https://earn.wannads.com/surveywall?apiKey=6ad12703611cd701313712&userId={uid}', capsbit: 'https://offerwall.capsbit.com/d3369054f18f3ccfe607c0ea4a9f15/{uid}' };   // live even if the admin never added a link
+const PINNED = { cpx: { name: 'CPX Research', category: 'survey', bonus: 35, order: 1 }, wannads_wall: { name: 'Wannads Offerwall', category: 'task', bonus: 0, order: 2 }, wannads_survey: { name: 'Wannads Surveys', category: 'survey', bonus: 0, order: 3 }, capsbit: { name: 'Capsbit Offerwall', category: 'task', bonus: 0, order: 4 }, };
 const partnerList = () => {
   const adminRows = Object.entries(S.partners || {}).map(([id, p]) => ({ ...p, id }));
   const rows0 = adminRows.length ? adminRows : DEFAULT_PARTNERS.map(([id, name, category, bonus], i) => ({ id, name, category, bonus, order: i + 1, enabled: true }));
   Object.entries(PINNED).forEach(([id, d]) => { if (!rows0.some(r => r.id === id)) rows0.push({ id, ...d, enabled: true }); });
-  const rows = rows0.filter(r => r.id !== 'capsbit');   // Capsbit removed from the app
+  const rows = rows0;
   return rows.map(p => {
     const pin = PINNED[p.id];
-    const url = !['cpx', 'wannads_wall', 'wannads_survey'].includes(p.id) ? '' : p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
+    const url = !['cpx', 'wannads_wall', 'wannads_survey', 'capsbit'].includes(p.id) ? '' : p.code ? '' : (p.url && !(p.id === 'cpx' && /offers\.cpx-research\.com|\/api\/wall/.test(p.url)) ? p.url : (BUILTIN_URL[p.id] || ''));
     return { ...p, order: pin ? pin.order : (p.order || 50) + 10, logo: p.logo || OFFICIAL_LOGO[p.id] || null, url, live: !!(url || p.code) };
   }).filter(p => p.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
 };
@@ -1326,7 +1331,7 @@ const _renderAuthBase = renderAuth;
 renderAuth = function (force) {
   _renderAuthBase(force);
   const box = $('#auth');
-  if (box && S.authMode === 'login') box.insertAdjacentHTML('beforeend', `<p class="px-6 pb-8 text-center text-xs text-slate-500">Password bhul gaye? <a href="mailto:${esc(cfg('support_email'))}?subject=${ENC('Password help - ' + cfg('site_name'))}&body=${ENC('Mobile number: ')}" class="font-bold text-indigo-600">Support se contact karein</a></p>`);
+  if (box && S.authMode === 'login' && !box.querySelector('[data-forgot]')) box.insertAdjacentHTML('beforeend', `<p data-forgot class="px-6 pb-8 text-center text-xs text-slate-500">Password bhul gaye? <a href="mailto:${esc(cfg('support_email'))}?subject=${ENC('Password help - ' + cfg('site_name'))}&body=${ENC('Mobile number: ')}" class="font-bold text-indigo-600">Support se contact karein</a></p>`);
   maybeIntro();
 };
 // Screenshot check: the image must contain the keywords the admin set for the task
@@ -1636,10 +1641,10 @@ function heartbeat() { if (S.user) set(ref(db, 'activity/' + S.user.uid), Date.n
 setInterval(heartbeat, 60000); setTimeout(heartbeat, 4000);
 function statsStrip() {
   if (!S.user) return '';
-  const now = Date.now(), active = Object.values(S.activity || {}).filter(t => typeof t === 'number' && now - t < 86400000).length;
-  const tasks = ((S.pubStats || {}).tasks || {})[todayStr()] || 0;
+  const total = Object.keys(S.lb || {}).length;                       // every user on the rank, live
+  const tasks = ((S.pubStats || {}).tasks || {})[todayStr()] || 0;   // real count of tasks completed today
   const card = (label, val, icon, c) => `<div class="${CARD} flex items-center gap-3 p-3.5"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${c}"><i class="fa-solid ${icon}"></i></span><div><p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">${label}</p><p class="text-lg font-extrabold">${val}</p></div></div>`;
-  return `<div class="mb-5 grid grid-cols-2 gap-3">${card('Active users (24h)', active, 'fa-user-group', 'bg-indigo-50 text-indigo-600')}${card('Tasks done today', tasks, 'fa-circle-check', 'bg-emerald-50 text-emerald-600')}</div>`;
+  return `<div class="mb-5 grid grid-cols-2 gap-3">${card('Total users (live)', total, 'fa-user-group', 'bg-indigo-50 text-indigo-600')}${tasks > 50 ? card('Tasks done today', tasks, 'fa-circle-check', 'bg-emerald-50 text-emerald-600') : ''}</div>`;
 }
 const _homeV12 = views.home;
 views.home = function () { return statsStrip() + _homeV12(); };
