@@ -1713,6 +1713,109 @@ extClick = function (b, a) {
   return _extClickV12(b, a);
 };
 
+
+// ================= v14: profile photo, notification permission, leaderboard photos =================
+S.photos = S.photos || {}; S._notifAt = Date.now(); S._notified = S._notified || {};
+function notifSupported() { return ('Notification' in window) || !!(window.TEAndroid && typeof window.TEAndroid.requestNotifications === 'function'); }
+function notifGranted() { if ('Notification' in window) return Notification.permission === 'granted'; return lsGet('te_notif_ok') === '1'; }
+function askNotif() {
+  if (window.TEAndroid && typeof window.TEAndroid.requestNotifications === 'function') { try { window.TEAndroid.requestNotifications(); } catch (_) {} lsSet('te_notif_ok', '1'); return; }
+  if ('Notification' in window) Notification.requestPermission().then(() => setTimeout(notifGate, 200)).catch(() => {});
+}
+function notifGate() {
+  if (!S.user || !notifSupported()) return;
+  let m = document.getElementById('notifAsk');
+  if (notifGranted()) { if (m) m.remove(); return; }
+  const denied = 'Notification' in window && Notification.permission === 'denied', key = denied ? 'd' : 'a';
+  if (!m) {
+    m = document.createElement('div'); m.id = 'notifAsk';
+    m.className = 'fixed inset-0 z-[96] flex items-center justify-center bg-slate-900/70 p-5 backdrop-blur-sm';
+    m.addEventListener('click', e => { if (e.target.closest('[data-na=allow]')) askNotif(); });
+    document.body.appendChild(m);
+  }
+  if (m.dataset.k === key) return;
+  m.dataset.k = key;
+  m.innerHTML = `<div class="${CARD} pop-in w-full max-w-sm rounded-3xl p-6 text-center">
+    <span class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-4xl text-white shadow-xl"><i class="fa-solid fa-bell"></i></span>
+    <h3 class="mt-4 text-xl font-extrabold">Turn on notifications</h3>
+    <p class="mt-2 text-sm text-slate-600">Get alerts for new contests, rewards, withdrawal updates and special offers, so you never miss a chance to earn.</p>
+    ${denied ? '<p class="mt-4 rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-700">Notifications are blocked for this site. Open the browser or phone settings, allow notifications for TaskEarnPro, then come back.</p>' : '<button data-na="allow" class="btn-start mt-5 w-full rounded-xl py-3.5 text-sm font-bold">Allow notifications</button>'}
+    <p class="mt-3 text-[11px] text-slate-400">This message stays until notifications are allowed.</p></div>`;
+}
+setInterval(notifGate, 2500);
+function notifyNew() {
+  if (!S.user || !notifGranted() || !('Notification' in window)) return;
+  notifList().forEach(n => { if ((n.ts || 0) > S._notifAt && !S._notified[n.id]) { S._notified[n.id] = 1; try { new Notification(n.title || 'TaskEarnPro', { body: n.message || '' }); } catch (_) {} } });
+}
+setInterval(notifyNew, 3000);
+// ---- profile picture (square, small, stored under photos/<uid>)
+function fileToSquare(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(new Error('Could not read the picture.'));
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error('That file is not a picture.'));
+      img.onload = () => {
+        const size = 160, c = document.createElement('canvas'); c.width = size; c.height = size;
+        const x = c.getContext('2d'), k = Math.max(size / img.width, size / img.height), w = img.width * k, h = img.height * k;
+        x.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        let q = 0.8, url = c.toDataURL('image/jpeg', q);
+        while (url.length > 60000 && q > 0.3) { q -= 0.1; url = c.toDataURL('image/jpeg', q); }
+        url.length > 60000 ? rej(new Error('Picture is too big. Please choose a smaller one.')) : res(url);
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+async function uploadPhoto(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) return flash('error', 'Please choose a picture file.');
+  try { busy(async () => { const url = await fileToSquare(file); await set(ref(db, 'photos/' + S.user.uid), url); flash('success', 'Profile picture updated.'); }); }
+  catch (e) { flash('error', e.message || 'Could not update the picture.'); }
+}
+document.addEventListener('change', e => { if (e.target && e.target.name === 'photo') uploadPhoto(e.target.files[0]); });
+const _extClickV13 = extClick;
+extClick = function (b, a) {
+  if (a === 'photoremove') { busy(() => remove(ref(db, 'photos/' + S.user.uid))); return true; }
+  return _extClickV13(b, a);
+};
+const _profileV14 = views.profile;
+views.profile = function () {
+  let h = _profileV14();
+  const url = S.photos[S.user.uid];
+  if (url) h = h.replace('<span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-2xl text-indigo-600"><i class="fa-solid fa-user"></i></span>', `<img src="${url}" alt="" class="h-16 w-16 rounded-full object-cover shadow-lg">`);
+  const card = `<div class="mb-5 ${CARD} flex items-center gap-4 p-4"><label class="min-w-0 flex-1 cursor-pointer"><span class="block text-sm font-bold">Profile picture</span><span class="block text-xs text-slate-500">Square picture. It also shows on the leaderboard.</span><input type="file" name="photo" accept="image/*" class="mt-2 block w-full text-xs"></label>${url ? '<button data-act="photoremove" class="shrink-0 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">Remove</button>' : ''}</div>`;
+  return card + h;
+};
+// ---- leaderboard with profile pictures and the full list (50 per page)
+views.leaderboard = function (arg) {
+  const tabs = `<div class="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/60 p-1 backdrop-blur"><a href="#/leaderboard" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'text-slate-500' : 'btn-primary text-white'}">Leaderboard</a><a href="#/leaderboard/contests" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'btn-primary text-white' : 'text-slate-500'}">Contests</a></div>`;
+  if (arg === 'contests') return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">Contests with cash prizes</p>${tabs}${contestsPage().replace(backBtn('#/extra', 'Contests'), '')}`;
+  const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+  const ini = n => (String(n || '?').trim()[0] || '?').toUpperCase();
+  const av = (r, size, text) => S.photos[r.id] ? `<img src="${S.photos[r.id]}" alt="" class="${size} rounded-full object-cover shadow-lg">` : `<span class="${size} flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 font-extrabold text-white shadow-lg ${text}">${esc(ini(r.name))}</span>`;
+  const all = Object.entries(S.lb || {}).map(([id, v]) => ({ id, name: v.name, earned: v.earned || 0 })).filter(r => r.name).sort((a, b) => b.earned - a.earned);
+  const me = all.findIndex(r => r.id === S.user.uid), mine = me >= 0 ? all[me] : null;
+  const seat = (r, pos) => {
+    if (!r) return '<div class="flex-1"></div>';
+    const king = pos === 1, size = king ? 'h-20 w-20' : 'h-14 w-14', text = king ? 'text-2xl' : 'text-base', h = king ? 'h-32' : pos === 2 ? 'h-24' : 'h-20';
+    const grad = king ? 'from-amber-300 via-yellow-400 to-orange-500' : pos === 2 ? 'from-slate-200 to-slate-400' : 'from-orange-300 to-amber-700';
+    return `<div class="pod-col p${pos} flex flex-1 flex-col items-center">${king ? '<span class="king-crown mb-1 text-3xl"><i class="fa-solid fa-crown"></i></span>' : ''}
+      <span class="${king ? 'king-ring' : ''} relative inline-flex">${av(r, size, text)}</span>
+      <p class="mt-2 max-w-[96px] truncate text-xs font-extrabold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-[11px] font-semibold text-indigo-600">${esc(money(r.earned))}</p>
+      <div class="pod-block mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${grad} pt-2 text-lg font-extrabold text-white ${h}">${pos}</div></div>`;
+  };
+  const podium = all.length ? `<div class="relative mb-6 overflow-hidden rounded-3xl px-3 pt-4 ${CARD}"><p class="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[0.25em] text-amber-600">${all[0] ? 'King of the leaderboard' : ''}</p><div class="flex items-end justify-center gap-3">${seat(all[1], 2)}${seat(all[0], 1)}${seat(all[2], 3)}</div></div>` : '';
+  const shown = all.slice(3, 3 + S.lbShown);
+  const rows = shown.map((r, i) => `<div class="rank-row flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/70' : ''}" style="--i:${i % 20}"><span class="w-9 text-center text-sm font-extrabold text-slate-500">${i + 4}</span>${av(r, 'h-9 w-9', 'text-sm')}<p class="min-w-0 flex-1 truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('');
+  const more = all.length > 3 + S.lbShown ? `<button data-act="lbmore" class="mt-3 w-full rounded-xl bg-white/70 py-3 text-sm font-bold text-indigo-700 shadow-sm">Show more (${all.length - 3 - S.lbShown} left)</button>` : '';
+  return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">All ${all.length} users &middot; top earners</p>${tabs}
+    <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p><p class="relative mt-1 text-3xl font-bold">${mine ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${mine ? 'Total earned ' + esc(money(mine.earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
+    ${podium || emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!')}${rows ? `<div class="divide-y divide-slate-100 ${CARD}">${rows}</div>` : ''}${more}`;
+};
+
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
   if (a === 'bdot') { bannerGo(Number(b.dataset.i)); return true; }
@@ -1780,7 +1883,7 @@ async function boot(u) {
   listen('tasks', 'tasks'); listen('taskStats', 'stats'); listen('userTasks/' + uid, 'ut'); listen('withdrawals/' + uid, 'wd'); listen('referrals/' + uid, 'refs');
   listen('', 'tx', query(ref(db, 'transactions/' + uid), limitToLast(300)));
   listen('promos/' + uid, 'promos'); listen('', 'lb', query(ref(db, 'leaderboard'), orderByChild('earned'), limitToLast(1000)));
-  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin'); listen('notifications', 'notifs'); listen('homeBanners', 'banners'); listen('activity', 'activity'); listen('pubStats', 'pubStats'); listen('giftAvail', 'giftAvail');
+  listen('deposits/' + uid, 'dep'); listen('ads', 'ads'); listen('partners', 'partners'); listen('extras', 'extras'); listen('bgmusic', 'bgm'); listen('contests', 'contests'); listen('contestBoard', 'cboard'); listen('contacts', 'contacts'); listen('bgmTracks', 'bgmTracks'); listen('contestJoin', 'cjoin'); listen('notifications', 'notifs'); listen('homeBanners', 'banners'); listen('activity', 'activity'); listen('pubStats', 'pubStats'); listen('giftAvail', 'giftAvail'); listen('photos', 'photos');
   unsubs.push(onValue(ref(db, `extraUse/${uid}/${todayStr()}`), x => { S.xu = x.val() || {}; render(); }, () => {}));
   unsubs.push(onValue(ref(db, `adViews/${uid}/${todayStr()}`), x => { S.advToday = x.val() || 0; render(); }, () => {}));
   unsubs.push(onValue(ref(db, 'users/' + uid), s => { const v = s.val(); if (!v) return; if (v.status === 'blocked') { S.authErr = 'Your account has been blocked. Please contact support.'; signOut(auth); return; } S.profile = v; render(); }));
