@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="cpmbid-site-verification" content="f0bec38b190af176c66b318081cf3f45">
-  <meta charset="utf-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
 <title>TaskEarnPro 2.0</title>
@@ -380,7 +379,7 @@ async function doWithdraw(upi, amtStr, email) {
       if (mk === 'upi') { rec.upi = upi; rec.fee = fee; rec.net = amt - fee; }
       await set(wref, rec);
       await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: amt, reason: 'Redeem request (' + m.label + (fee ? ', fee ' + money(fee) : '') + ')', ref: wref.key, ts: serverTimestamp() });
-      flash('success', 'Redeem request submitted.' + (fee ? ' You will receive ' + money(amt - fee) + ' after the ' + cfg('upi_fee_pct') + '% fee.' : ''));
+      showRedeemDone((METHODS[S.method] || {}).label || 'UPI', amt - fee);
     } catch (e2) { await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) + amt); flash('error', 'Could not submit the request. Please try again.'); }
   } catch (e) { flash('error', 'Something went wrong. Please try again.'); }
 }
@@ -478,7 +477,7 @@ const views = {
       const tag = rj ? ' &middot; <span class="font-semibold text-red-500">Rejected</span>' : isAutoWatch(t) ? ' &middot; Auto verified' : needsProof(t) ? ' &middot; Proof' : '';
       const tagG = (t.tutorialVideo || t.hasVoice) ? ' &middot; Guide' : '';
       return `<div style="--i:${i}" class="${CARD} ${t.premium ? 'premium-card' : ''} flex items-center gap-3 p-2.5"><a href="#/task/${t.id}" class="relative block h-[68px] w-[100px] shrink-0 overflow-hidden rounded-xl bg-indigo-50">
-        ${t.cover ? `<img src="${t.cover}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-2xl"></i></div>`}
+        ${t.cover ? `<img src="${t.cover}" alt="" loading="lazy" class="h-full w-full object-cover">` : `${typeLogo(t, "sm")}`}
         <span class="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-white/80 text-[10px] text-indigo-600 backdrop-blur"><i class="fa-solid ${icon}"></i></span></a>
         <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">${esc(t.title)}</p><p class="truncate text-[11px] text-slate-500">${t.premium ? '<span class="crown font-extrabold text-amber-600"><i class="fa-solid fa-crown mr-1"></i>Premium</span> &middot; ' : ''}${esc(label)}${tag}${tagG}</p>
         <div class="mt-1.5 flex items-center justify-between gap-2"><span class="inline-flex items-center gap-1 text-sm font-extrabold text-indigo-600"><i class="fa-solid fa-coins text-[11px]"></i>+${esc(money(taskReward(t)))}</span>${cta}</div></div></div>`;
@@ -518,7 +517,7 @@ const views = {
     } else if (st === 'pending') action = `<div class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><i class="fa-solid fa-clock mt-0.5 text-amber-500"></i><span>Proof submitted. Waiting for admin review.</span></div>`;
     else if (st === 'done') action = `<div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><i class="fa-solid fa-circle-check mt-0.5 text-emerald-500"></i><span>${t.type === 'daily' ? 'Reward claimed today. Come back tomorrow.' : 'You have already completed this task.'}</span></div>`;
     else action = `<div class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-100 p-4 text-sm text-slate-600"><i class="fa-solid fa-ban mt-0.5"></i><span>This task has reached its completion limit.</span></div>`;
-    return `${backBtn('#/home', 'Task Details')}<div class="overflow-hidden ${CARD}"><div class="h-40 w-full bg-indigo-50">${t.cover ? `<img src="${t.cover}" alt="" class="h-full w-full object-cover">` : `<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-400"><i class="fa-solid ${icon} text-6xl"></i></div>`}</div>
+    return `${backBtn('#/home', 'Task Details')}<div class="overflow-hidden ${CARD}"><div class="h-40 w-full bg-indigo-50">${t.cover ? `<img src="${t.cover}" alt="" class="h-full w-full object-cover">` : `${typeLogo(t, "lg")}`}</div>
       <div class="p-4"><div class="flex items-center justify-between gap-3"><span class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600"><i class="fa-solid ${icon}"></i>${esc(label)}</span>
       <span class="inline-flex items-center gap-1.5 btn-primary rounded-full px-3 py-1 text-sm font-bold text-white"><i class="fa-solid fa-coins text-xs"></i>+${esc(money(taskReward(t)))}</span></div>
       <h2 class="mt-2 text-xl font-bold leading-snug">${esc(t.title)}</h2>${dsteps.length ? '' : `<p class="mt-2 whitespace-pre-line text-sm text-slate-600">${esc(t.description)}</p>`}</div></div>
@@ -1982,6 +1981,36 @@ function showRedeemDone(label, amt) {
   });
   document.body.appendChild(m);
 }
+
+
+// ================= v19: task type logos, hot offer popup on every app open =================
+const TYPE_LOGO = { install: ['from-emerald-400 to-teal-600', 'fa-download', 'INSTALL'], daily: ['from-amber-400 to-orange-500', 'fa-calendar-check', 'DAILY'], survey: ['from-violet-500 to-fuchsia-600', 'fa-clipboard-list', 'SURVEY'], watch: ['from-red-500 to-rose-600', 'fa-circle-play', 'WATCH'], join: ['from-sky-400 to-blue-600', 'fa-paper-plane', 'JOIN'], rate: ['from-yellow-400 to-amber-500', 'fa-star', 'RATE'] };
+function typeLogo(t, size) {
+  const [g, ic, word] = TYPE_LOGO[t.type] || TYPE_LOGO.watch, big = size === 'lg';
+  return `<div class="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br ${g} text-white"><i class="fa-solid ${ic} ${big ? 'text-5xl' : 'text-2xl'} drop-shadow"></i>${big ? `<span class="mt-2 rounded-full bg-white/25 px-3 py-1 text-xs font-extrabold tracking-widest">${word}</span>` : `<span class="mt-0.5 text-[8px] font-extrabold tracking-widest opacity-90">${word}</span>`}</div>`;
+}
+// Hot Offer popup: on every app open (after the notification popup)
+S._hoShown = false;
+function hotOfferGate() {
+  if (S._hoShown || !S.user || !S.profile || document.getElementById('notifAsk') || document.getElementById('hotOfferPop')) return;
+  S._hoShown = true;
+  const m = document.createElement('div');
+  m.id = 'hotOfferPop';
+  m.style.cssText = 'position:fixed;inset:0;z-index:94;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.7)';
+  m.innerHTML = `<div class="${CARD} pop-in relative w-full max-w-sm overflow-hidden rounded-3xl p-6 text-center">
+    <span class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-pink-500 text-4xl text-white shadow-xl"><i class="fa-solid fa-fire"></i></span>
+    <h3 class="mt-4 text-xl font-extrabold">Hot Offer complete karo!</h3>
+    <p class="mt-2 text-sm text-slate-600">Roz <b>500+</b> tak kamao. Naye offers, surveys aur daily tasks ek hi jagah par, aaj hi shuru karo.</p>
+    <button data-ho="view" class="btn-start mt-5 w-full rounded-xl py-3.5 text-sm font-bold">View Hot Offer</button>
+    <button data-ho="close" class="mt-2 w-full py-2 text-sm font-semibold text-slate-500">Close</button></div>`;
+  m.addEventListener('click', e => {
+    const b = e.target.closest('[data-ho]');
+    if (e.target === m || (b && b.dataset.ho === 'close')) m.remove();
+    if (b && b.dataset.ho === 'view') { m.remove(); location.hash = '#/partners'; }
+  });
+  document.body.appendChild(m);
+}
+setInterval(hotOfferGate, 1500);
 
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
