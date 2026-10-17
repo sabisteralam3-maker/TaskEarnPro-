@@ -193,6 +193,16 @@
   body.has-web-banner #musicFab,body.has-web-banner #giftFab{bottom:calc(150px + var(--sab))!important}
   #giftFab{position:fixed;left:16px;bottom:calc(96px + var(--sab));width:48px;height:48px;z-index:40}
   body.has-web-banner #view{padding-bottom:calc(210px + var(--sab))!important}
+  /* gift box animation */
+  .gbox{position:relative;width:110px;height:104px;animation:gfloat 2.4s ease-in-out infinite}
+  .gbody{position:absolute;left:12px;right:12px;bottom:0;height:70px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#ef4444);box-shadow:0 10px 24px rgba(239,68,68,.35)}
+  .gbody::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:12px;margin-left:-6px;background:#fde68a}
+  .glid{position:absolute;left:6px;right:6px;top:22px;height:22px;border-radius:9px;background:linear-gradient(135deg,#fbbf24,#f97316);transform-origin:left center;animation:glidopen 1.8s cubic-bezier(.2,1.3,.4,1) .3s infinite}
+  @keyframes glidopen{0%{transform:rotate(0)}35%{transform:rotate(-40deg) translateY(-8px)}65%{transform:rotate(-40deg) translateY(-8px)}100%{transform:rotate(0)}}
+  .gs{position:absolute;font-size:20px;opacity:0;animation:gspark 1.8s ease-out infinite}
+  .gs1{left:-8px;top:8px;animation-delay:.7s}.gs2{right:-10px;top:0;animation-delay:1s}.gs3{right:2px;bottom:22px;animation-delay:1.3s}
+  @keyframes gspark{0%{opacity:0;transform:scale(.4)}30%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:translateY(-26px) scale(.8)}}
+  @keyframes gfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -1827,15 +1837,6 @@ views.leaderboard = function (arg) {
 
 // ================= v16: gift box (smart link) and web banner (Adsterra) =================
 const GIFT_LINK = 'https://www.profitableratecpmnetwork.com/id27bk64av?key=cfa05b13b83c7b524184b094c3cadd11';
-function mountGiftFab() {
-  if (document.getElementById('giftFab')) return;
-  const a = document.createElement('a');
-  a.id = 'giftFab'; a.href = GIFT_LINK; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.setAttribute('aria-label', 'Gift');
-  a.className = 'flex items-center justify-center rounded-full text-white shadow-xl active:scale-95';
-  a.style.background = 'linear-gradient(135deg,#f59e0b,#ef4444)';
-  a.innerHTML = '<i class="fa-solid fa-gift text-lg"></i>';
-  document.body.appendChild(a);
-}
 function mountWebBanner() {
   if (hasNative() || !S.user || document.getElementById('webBanner')) return;
   const w = document.createElement('div');
@@ -1854,6 +1855,100 @@ function mountWebBanner() {
   inner.appendChild(s2);
 }
 setInterval(() => { mountGiftFab(); mountWebBanner(); }, 3000);
+
+
+// ================= v17: old redeem system, compact stats, anime avatars, gift box, leaderboard =================
+// Redeem (UPI, Amazon, Google Play): the wallet is debited, a pending request is made, and the admin sends the code.
+giftRedeem = async function (mk, amtStr, email) {
+  const amt = parseMoney(amtStr), m = METHODS[mk];
+  if (!amt || amt <= 0) return flash('error', 'Enter a valid amount.');
+  if (amt < cfg(m.min)) return flash('error', 'Minimum for ' + m.label + ' is ' + money(cfg(m.min)) + '.');
+  if (amt > cfg(m.max)) return flash('error', 'Maximum for ' + m.label + ' is ' + money(cfg(m.max)) + '.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return flash('error', 'Enter a valid email address.');
+  const uid = S.user.uid;
+  const tr = await runTransaction(ref(db, `users/${uid}/balance`), c => (c || 0) >= amt ? (c || 0) - amt : undefined);
+  if (!tr.committed) return flash('error', 'Insufficient wallet balance.');
+  const wref = push(ref(db, `withdrawals/${uid}`));
+  await set(wref, { method: mk, amount: amt, fee: 0, net: amt, upi: email, email, status: 'pending', createdAt: serverTimestamp(), name: (S.profile && S.profile.name) || '', mobile: (S.profile && S.profile.mobile) || '' });
+  await set(push(ref(db, `transactions/${uid}`)), { type: 'debit', amount: amt, reason: 'Redeem request (' + m.label + ')', ref: wref.key, ts: serverTimestamp() });
+  flash('success', 'Request sent! Your ' + m.label + ' code will be sent to ' + email + ' after admin review.');
+};
+availBar = () => '';   // no stock list any more
+
+// Home: a small, neat counter in the corner (real numbers only)
+statsStrip = function () {
+  if (!S.user) return '';
+  const total = Object.keys(S.lb || {}).length;
+  const tasks = ((S.pubStats || {}).tasks || {})[todayStr()] || 0;
+  return `<div class="mb-3 flex flex-wrap justify-end gap-2"><span class="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-bold text-indigo-700 shadow-sm"><i class="fa-solid fa-user-group"></i>${total} users</span>${tasks > 50 ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700 shadow-sm"><i class="fa-solid fa-circle-check"></i>${Math.floor(tasks / 10) * 10}+ tasks today</span>` : ''}</div>`;
+};
+
+// Anime-style avatar: every user gets a different one (from the user id) until they upload their own picture
+function animeAvatar(uid) {
+  let h = 0; for (const c of String(uid || 'x')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const pick = (arr, k) => arr[(h >> k) % arr.length];
+  const skin = pick(['#ffe0c7', '#f6d2b0', '#f1c7a5', '#e9b99a'], 0), hair = pick(['#1f2937', '#4b2e83', '#b45309', '#be185d', '#0ea5e9', '#16a34a', '#f59e0b', '#6b21a8'], 3);
+  const eye = pick(['#0f172a', '#1e3a8a', '#166534', '#7c2d12'], 6), cloth = pick(['#6366f1', '#ec4899', '#06b6d4', '#f59e0b', '#10b981'], 9), bg = pick(['#e0e7ff', '#fce7f3', '#cffafe', '#fef3c7', '#dcfce7'], 12), style = (h >> 15) % 3;
+  const back = style === 2 ? '' : `<path d="M${style ? 28 : 30} 58 Q${style ? 20 : 24} 120 ${style ? 34 : 40} 150 L${style ? 86 : 80} 150 Q${style ? 100 : 96} 120 ${style ? 92 : 90} 58 Z" fill="${hair}"/>`;
+  const front = style === 2 ? `<path d="M30 62 Q60 10 90 62 Q84 40 60 36 Q40 40 30 62 Z" fill="${hair}"/><path d="M34 60 Q60 22 86 60 L84 74 Q60 46 36 74 Z" fill="${hair}"/>` : `<path d="M32 60 Q60 14 88 60 Q72 42 60 42 Q44 44 32 60 Z" fill="${hair}"/><path d="M40 52 Q48 34 60 40 Q56 52 40 52 Z" fill="${hair}" opacity=".7"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${bg}"/>${back}<ellipse cx="60" cy="150" rx="46" ry="30" fill="${cloth}"/><rect x="52" y="90" width="16" height="20" fill="${skin}"/><ellipse cx="60" cy="66" rx="30" ry="32" fill="${skin}"/>${front}<ellipse cx="48" cy="68" rx="5" ry="7" fill="${eye}"/><ellipse cx="72" cy="68" rx="5" ry="7" fill="${eye}"/><circle cx="49.5" cy="65.5" r="1.8" fill="#fff"/><circle cx="73.5" cy="65.5" r="1.8" fill="#fff"/><path d="M52 80 Q60 86 68 80" stroke="#be123c" stroke-width="2.4" fill="none" stroke-linecap="round"/><ellipse cx="40" cy="78" rx="4" ry="2.5" fill="#fb7185" opacity=".6"/><ellipse cx="80" cy="78" rx="4" ry="2.5" fill="#fb7185" opacity=".6"/></svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+const photoOf = uid => (S.photos && S.photos[uid]) || animeAvatar(uid);
+const _profileV16 = views.profile;
+views.profile = function () {
+  let h = _profileV16();
+  if (!S.photos[S.user.uid]) h = h.replace('<span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-2xl text-indigo-600"><i class="fa-solid fa-user"></i></span>', `<img src="${animeAvatar(S.user.uid)}" alt="" class="h-16 w-16 rounded-full object-cover shadow-lg">`);
+  return h;
+};
+views.leaderboard = function (arg) {
+  const tabs = `<div class="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/60 p-1 backdrop-blur"><a href="#/leaderboard" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'text-slate-500' : 'btn-primary text-white'}">Leaderboard</a><a href="#/leaderboard/contests" class="rounded-xl py-2.5 text-center text-sm font-bold ${arg === 'contests' ? 'btn-primary text-white' : 'text-slate-500'}">Contests</a></div>`;
+  if (arg === 'contests') return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">Contests with cash prizes</p>${tabs}${contestsPage().replace(backBtn('#/extra', 'Contests'), '')}`;
+  const mask = n => { const p = String(n || 'User').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); };
+  const all = Object.entries(S.lb || {}).map(([id, v]) => ({ id, name: v.name, earned: v.earned || 0 })).filter(r => r.name).sort((a, b) => b.earned - a.earned);
+  const me = all.findIndex(r => r.id === S.user.uid), mine = me >= 0 ? all[me] : null;
+  const av = (r, size) => `<img src="${photoOf(r.id)}" alt="" class="${size} rounded-full bg-white object-cover shadow-lg">`;
+  const seat = (r, pos) => {
+    if (!r) return '<div class="flex-1"></div>';
+    const king = pos === 1, size = king ? 'h-20 w-20' : 'h-14 w-14', h = king ? 'h-32' : pos === 2 ? 'h-24' : 'h-20';
+    const grad = king ? 'from-amber-300 via-yellow-400 to-orange-500' : pos === 2 ? 'from-slate-200 to-slate-400' : 'from-orange-300 to-amber-700';
+    return `<div class="pod-col p${pos} flex flex-1 flex-col items-center">${king ? '<span class="king-crown mb-1 text-3xl"><i class="fa-solid fa-crown"></i></span>' : ''}
+      <span class="${king ? 'king-ring' : ''} relative inline-flex">${av(r, size)}</span>
+      <p class="mt-2 max-w-[96px] truncate text-xs font-extrabold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="text-[11px] font-semibold text-indigo-600">${esc(money(r.earned))}</p>
+      <div class="pod-block mt-2 flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b ${grad} pt-2 text-lg font-extrabold text-white ${h}">${pos}</div></div>`;
+  };
+  const podium = all.length ? `<div class="relative mb-6 overflow-hidden rounded-3xl px-3 pt-4 ${CARD}"><p class="mb-2 text-center text-[11px] font-extrabold uppercase tracking-[0.25em] text-amber-600">${all[0] ? 'King of the leaderboard' : ''}</p><div class="flex items-end justify-center gap-3">${seat(all[1], 2)}${seat(all[0], 1)}${seat(all[2], 3)}</div></div>` : '';
+  const shown = all.slice(3, 3 + S.lbShown);
+  const rows = shown.map((r, i) => `<div class="rank-row flex items-center gap-3 p-3.5 ${r.id === S.user.uid ? 'bg-indigo-50/70' : ''}" style="--i:${i % 20}"><span class="w-9 text-center text-sm font-extrabold text-slate-500">${i + 4}</span>${av(r, 'h-9 w-9')}<p class="min-w-0 flex-1 truncate text-sm font-semibold">${r.id === S.user.uid ? 'You' : esc(mask(r.name))}</p><p class="shrink-0 text-sm font-bold text-indigo-600">${esc(money(r.earned))}</p></div>`).join('');
+  const more = all.length > 3 + S.lbShown ? `<button data-act="lbmore" class="mt-3 w-full rounded-xl bg-white/70 py-3 text-sm font-bold text-indigo-700 shadow-sm">Show more (${all.length - 3 - S.lbShown} left)</button>` : '';
+  return `<h1 class="text-xl font-bold">Leaderboard</h1><p class="mb-4 text-sm text-slate-500">All ${all.length} users &middot; top earners</p>${tabs}
+    <div class="hero mb-5 rounded-3xl p-5 text-white"><p class="relative text-xs font-medium text-indigo-100"><i class="fa-solid fa-trophy mr-1.5"></i>Your Rank</p><p class="relative mt-1 text-3xl font-bold">${mine ? '#' + (me + 1) : 'Not ranked yet'}</p><p class="relative mt-1 text-xs text-indigo-100">${mine ? 'Total earned ' + esc(money(mine.earned)) : 'Complete tasks to enter the leaderboard.'}</p></div>
+    ${podium || emptyBox('fa-ranking-star', 'No rankings yet.', 'Be the first to earn!')}${rows ? `<div class="divide-y divide-slate-100 ${CARD}">${rows}</div>` : ''}${more}`;
+};
+// Gift box: tap it, a box opens with an animation, then the offer link opens in a new tab
+function openGiftModal() {
+  const m = document.createElement('div');
+  m.id = 'giftModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.72)';
+  m.innerHTML = `<div class="${CARD} pop-in relative w-full max-w-sm overflow-hidden rounded-3xl p-6 text-center">
+    <div class="gbox mx-auto" aria-hidden="true"><div class="glid"></div><div class="gbody"></div><span class="gs gs1">&#10024;</span><span class="gs gs2">&#127881;</span><span class="gs gs3">&#127873;</span></div>
+    <h3 class="mt-4 text-xl font-extrabold">Special offer unlocked!</h3>
+    <p class="mt-2 text-sm text-slate-600">Tap below to open your special offer. It opens in a new tab.</p>
+    <a href="${GIFT_LINK}" target="_blank" rel="noopener noreferrer" class="btn-start mt-5 block rounded-xl py-3.5 text-sm font-bold">Open offer</a>
+    <button data-gx="close" class="mt-3 w-full rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600">Close</button></div>`;
+  m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-gx=close]')) m.remove(); });
+  document.body.appendChild(m);
+}
+function mountGiftFab() {
+  if (document.getElementById('giftFab')) return;
+  const b = document.createElement('button');
+  b.id = 'giftFab'; b.type = 'button'; b.setAttribute('aria-label', 'Gift');
+  b.className = 'flex items-center justify-center rounded-full text-white shadow-xl active:scale-95';
+  b.style.background = 'linear-gradient(135deg,#f59e0b,#ef4444)';
+  b.innerHTML = '<i class="fa-solid fa-gift text-lg"></i>';
+  b.addEventListener('click', openGiftModal);
+  document.body.appendChild(b);
+}
 
 // ---- click / submit hooks used by the main handlers
 function extClick(b, a) {
@@ -1913,6 +2008,7 @@ function listen(path, key, q) { unsubs.push(onValue(q || ref(db, path), s => { S
     if (key === 'bgm') bgmApply(); render(); }, e => { S.errs[key] = e.message; S._loaded[key] = true; console.error(path, e.message); render(); })); }
 async function boot(u) {
   document.getElementById('introBox')?.remove(); lsSet('te_intro', '1');
+  if (u) set(push(ref(db, 'opens/' + u.uid)), { ts: serverTimestamp(), ua: navigator.userAgent.slice(0, 160) }).catch(() => {});
   document.getElementById('boot') && document.getElementById('boot').classList.add('hidden');
   S.user = u;
   const snap = await get(ref(db, 'users/' + u.uid));
